@@ -1,13 +1,13 @@
 // A qué embudo pertenece una agenda o un pago. Una sola regla para Ventas → Embudos y Operaciones → Métricas.
 //  · Agenda: por su fuente (webinar/masterclass → Webinar; outbound/prospección → Outbound; youtube/yt → YouTube
 //    (la landing /llamada-de-admision?utm_source=yt, que iClosed registra y el sync vuelca en agendas.utm_*);
-//    vacía → Sin fuente; todo lo demás — reels, historias, carruseles, Ads, referidos — → Orgánico).
+//    demo de la app (utm_source=demo-app) → Demo app; vacía → Sin fuente; todo lo demás — reels, historias, carruseles, Ads, referidos — → Orgánico).
 //  · Pago: hereda el embudo de la agenda del cliente, enlazada por persona, por teléfono o por nombre (nombre de
 //    pila igual + un apellido igual). Si no hay agenda, la fuente cargada en el pago; si tampoco, Sin fuente.
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 
-export const EMBUDOS = ["Webinar", "Orgánico", "Outbound", "YouTube", "Sin fuente"] as const
+export const EMBUDOS = ["Webinar", "Orgánico", "Outbound", "YouTube", "Demo app", "Sin fuente"] as const
 export type Embudo = (typeof EMBUDOS)[number]
 
 export const minus = (s: unknown) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
@@ -19,7 +19,8 @@ export function embudoDe(fuente: unknown): Embudo {
   if (!f) return "Sin fuente"
   if (/webinar|masterclass/.test(f)) return "Webinar"
   if (/outbound|prospecci/.test(f)) return "Outbound"
-  if (/youtube|^yt$|yt/.test(f)) return "YouTube"
+  if (/demo.?app/.test(f)) return "Demo app"
+  if (/youtube|^yt$|\byt\b/.test(f)) return "YouTube"
   return "Orgánico"
 }
 

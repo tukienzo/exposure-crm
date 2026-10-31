@@ -181,6 +181,7 @@ export function canalDe(fuente: string | null | undefined): string {
   if (!f) return "Sin fuente"
   if (/ads|rmkt|frio|anuncio/.test(f)) return "Ads Meta"
   if (/youtube/.test(f)) return "YouTube"
+  if (/demo.?app/.test(f)) return "Demo app"
   if (/tiktok/.test(f)) return "TikTok"
   if (/referid|recomend/.test(f)) return "Referidos"
   if (/outbound|prospecci/.test(f)) return "Outbound"
@@ -196,7 +197,7 @@ export function segmentoDe(fuente: string | null | undefined): string {
   if (/webinar|masterclass|clase/.test(f)) return "Webinar"
   if (/ads|anuncio|frio|rmkt/.test(f)) return "Ads"
   if (/outbound|prospecci/.test(f)) return "Outbound"
-  if (/instagram|ig |reel|story|historia|carrusel|bio|manychat|dm|bienvenida|referid|youtube|tiktok|producto/.test(f)) return "Orgánico"
+  if (/instagram|ig |reel|story|historia|carrusel|bio|manychat|dm|bienvenida|referid|youtube|tiktok|producto|demo.?app/.test(f)) return "Orgánico"
   return "Otro"
 }
 

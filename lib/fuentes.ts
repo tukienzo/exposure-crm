@@ -32,7 +32,7 @@ export const FUENTE_GROUPS: FuenteGroup[] = [
   },
 ]
 
-export const FUENTE_STANDALONE = ["Webinar", "Referido", "YouTube", "WhatsApp", "Producto"]
+export const FUENTE_STANDALONE = ["Webinar", "Referido", "YouTube", "WhatsApp", "Producto", "Demo app"]
 
 // Muestra el label corto si la fuente está en la lista vigente; si es un
 // valor histórico ya sacado de las opciones (ej. "Instagram Link in Bio"),
@@ -44,4 +44,14 @@ export function fuenteLabel(value: string | null | undefined): string {
     if (found) return found.label
   }
   return value
+}
+
+// Origen que se muestra en la tarjeta de la agenda. Las que llegan de la demo de la app traen en utm_content el
+// botón que tocaron ("boton-carruseles"): se muestra "Demo app · Carruseles".
+export function origenAgenda(a: { fuente?: string | null; utm_source?: string | null; utm_content?: string | null }): string {
+  const base = fuenteLabel(a.fuente)
+  const esDemo = /demo.?app/i.test(a.fuente || "") || /^demo-?app$/i.test(a.utm_source || "")
+  const lugar = String(a.utm_content || "").trim().replace(/^boton[-_ ]*/i, "").replace(/[-_]+/g, " ").trim()
+  if (!esDemo || !lugar) return base
+  return `${base || "Demo app"} · ${lugar.charAt(0).toUpperCase()}${lugar.slice(1)}`
 }

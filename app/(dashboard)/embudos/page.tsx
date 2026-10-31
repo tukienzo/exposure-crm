@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils"
 // AOV Día 1 = lo recibido el día del cierre sobre todos los compromisos (ventas + fees); cash desde la tabla pagos.
 
 const fetcher = (url: string) => fetch(url, { cache: "no-store" }).then(async (r) => { const b = await r.json(); if (!r.ok) throw new Error(b.error || "Error"); return b })
-const EMBUDOS = ["Webinar", "Orgánico", "Outbound", "YouTube", "Sin fuente", "Total"] as const
+const EMBUDOS = ["Webinar", "Orgánico", "Outbound", "YouTube", "Demo app", "Sin fuente", "Total"] as const
 type Detalle = { cierres: Array<{ cliente: string; dia: string; cobrado: number; pagos_del_dia: string; fuente: string | null; via: string }>; fees: Array<{ cliente: string; dia: string; monto: number; pagos_del_dia: string; fuente: string | null }>; fees_sin_pago: Array<{ nombre: string; closer: string | null; fecha: string | null }> }
 type Bloque = { agendas: number; presentadas: number; no_show: number; sin_resultado: number; futuras: number; show_up: number | null; calificadas: number; calif_presentadas: number; show_up_calif: number | null; cierres: number; tc_calif_presentadas: number | null; tc_presentadas: number | null; fees: number; fees_usd: number; fees_sin_pago: number; aov_trato_cerrado: number | null; aov_dia_1: number | null; cash_total: number; cash_leads_mes: number; cuotas: number; back_end: number; detalle: Detalle }
 type Campana = { campaign_id: string; campaign_name: string | null; objetivo: string | null; embudo: string; embudo_manual: boolean; spend: number; impresiones: number | null; clics: number | null }

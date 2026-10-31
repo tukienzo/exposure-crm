@@ -22,7 +22,7 @@ function getSupabase() {
 // link_fathom y plan_de_pago SI van acá — hacen falta para marcar en la lista
 // qué leads cerrados les faltan datos al closer.
 const LIST_COLS =
-  "id,person_id,nombre,telefono,instagram,fecha_agenda,fecha_closer,fecha_lead,edad,closer,cuenta,setter,calificacion,fuente,ocupacion,manychat,puntos_contacto,call_confirmer,recurso,show,cerro,estado,motivo_no_cierre,calificaba_realmente,operacion,medio_de_pago,comprobante,cc_dia_1,fecha_tc,fecha_baja,link_fathom,plan_de_pago,problema_actual,tiempo_problema,intentos_previos,motivo_urgencia,ingresos,inversion,created_at,crm_people(primary_email)"
+  "id,person_id,nombre,telefono,instagram,fecha_agenda,fecha_closer,fecha_lead,edad,closer,cuenta,setter,calificacion,fuente,ocupacion,manychat,puntos_contacto,call_confirmer,recurso,show,cerro,estado,motivo_no_cierre,calificaba_realmente,operacion,medio_de_pago,comprobante,cc_dia_1,fecha_tc,fecha_baja,link_fathom,plan_de_pago,problema_actual,tiempo_problema,intentos_previos,motivo_urgencia,ingresos,inversion,utm_source,utm_content,created_at,crm_people(primary_email)"
 
 // Campos que se pueden setear al crear una agenda a mano desde el CRM (botón
 // "Agenda Manual" en Centro Agendas — leads que se agendaron por fuera de

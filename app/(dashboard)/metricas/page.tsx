@@ -171,7 +171,7 @@ export default function MetricasPage() {
   const [embudos, setEmbudos] = useState<string[]>([])
   const embudo = embudos.join(" + ")
   const qEmb = embudos.length ? `&embudo=${encodeURIComponent(embudos.join(","))}` : ""
-  const ORDEN_EMBUDOS = ["Webinar", "Orgánico", "Outbound", "YouTube", "Sin fuente"]
+  const ORDEN_EMBUDOS = ["Webinar", "Orgánico", "Outbound", "YouTube", "Demo app", "Sin fuente"]
   function alternarEmbudo(v: string) {
     if (!v) return setEmbudos([])
     setEmbudos((prev) => {
@@ -315,10 +315,10 @@ export default function MetricasPage() {
         </div>
       </div>
 
-      {/* Embudo: Webinar / Orgánico (incluye Ads) / Outbound / YouTube (utm_source=yt en iClosed) / Sin fuente */}
+      {/* Embudo: Webinar / Orgánico (incluye Ads) / Outbound / YouTube (utm_source=yt en iClosed) / Demo app (utm_source=demo-app) / Sin fuente */}
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="mr-1 text-xs font-bold uppercase tracking-wide text-muted-foreground">Embudo</span>
-        {[["", "Todos"], ["Webinar", "Webinar"], ["Orgánico", "Orgánico"], ["Outbound", "Outbound"], ["YouTube", "YouTube"], ["Sin fuente", "Sin fuente"]].map(([v, l]) => (
+        {[["", "Todos"], ["Webinar", "Webinar"], ["Orgánico", "Orgánico"], ["Outbound", "Outbound"], ["YouTube", "YouTube"], ["Demo app", "Demo app"], ["Sin fuente", "Sin fuente"]].map(([v, l]) => (
           <button key={v || "todos"} onClick={() => alternarEmbudo(v)} className={filterBtn(v ? embudos.includes(v) : embudos.length === 0)}>{l}</button>
         ))}
         {embudo && <span className="text-xs text-muted-foreground">

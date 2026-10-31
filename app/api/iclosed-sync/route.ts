@@ -35,8 +35,13 @@ function utmFields(call: any): Record<string, string> {
   }
   return out
 }
-// YouTube manda a la landing con utm_source=yt: esas agendas tienen fuente propia, el resto sigue como "Instagram".
-const fuenteDeUtm = (u: Record<string, string>) => (/^(yt|youtube)$/i.test(u.utm_source || "") || /youtube/i.test(u.utm_medium || "") ? "YouTube" : null)
+// YouTube manda a la landing con utm_source=yt y la demo de la app con utm_source=demo-app (utm_content=boton-<lugar>):
+// esas agendas tienen fuente propia, el resto sigue como "Instagram".
+const fuenteDeUtm = (u: Record<string, string>) => {
+  if (/^demo-?app$/i.test(u.utm_source || "")) return "Demo app"
+  if (/^(yt|youtube)$/i.test(u.utm_source || "") || /youtube/i.test(u.utm_medium || "")) return "YouTube"
+  return null
+}
 
 function answerFields(call: any) {
   const out: Record<string, string> = {}

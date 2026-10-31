@@ -22,6 +22,7 @@ import { canExportAgendas } from "@/lib/export-access"
 import type { Agenda } from "@/lib/supabase"
 import { exportRowsToCSV, exportRowsToXLSX } from "@/lib/csv-export"
 import { FuenteSelect, FuenteInlineCell, FuenteFilter } from "@/components/fuente-picker"
+import { origenAgenda } from "@/lib/fuentes"
 import { HelpHint } from "@/components/help-hint"
 import { useAngulos } from "@/lib/use-angulos"
 import { getPrecallSequence } from "@/lib/precall-angle-sequences"
@@ -1174,7 +1175,7 @@ export default function CentroAgendasPage() {
                     </div>
                     <div className="min-w-0 rounded-xl border border-black/[.045] bg-black/[.025] px-2.5 py-2 dark:border-white/[.05] dark:bg-white/[.035]">
                       <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-muted-foreground"><BriefcaseBusiness className="h-3 w-3" />Origen</span>
-                      <p className={cn("mt-0.5 truncate text-[11px] font-bold", !a.fuente && "text-red-500")}>{a.fuente || "Pendiente"}</p>
+                      <p className={cn("mt-0.5 truncate text-[11px] font-bold", !a.fuente && "text-red-500")}>{origenAgenda(a as any) || "Pendiente"}</p>
                     </div>
                     <button onClick={() => openChat(a)} className="min-w-0 rounded-xl border border-black/[.045] bg-black/[.025] px-2.5 py-2 text-left transition hover:bg-blue-500/10 dark:border-white/[.05] dark:bg-white/[.035]">
                       <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-muted-foreground"><MessageSquareText className="h-3 w-3" />Chat</span>
