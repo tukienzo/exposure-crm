@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
-import { canAccessApi, canAccessPage, effectiveCRMRole, homeForRole } from "@/lib/role-access"
+import { canAccessApi, canAccessPage, effectiveCRMRole, esRutaDeAccesos, homeForRole, puedeGestionarAccesos } from "@/lib/role-access"
 
 // Estas rutas tienen autenticacion propia y no dependen de una sesion web:
 // - ingest/* valida x-ingest-key dentro de cada handler.
@@ -40,6 +40,7 @@ async function approvedMember(email: string) {
   return {
     ok: member?.estado === "aprobado",
     role: effectiveCRMRole(member?.rol, member?.nombre),
+    gestorAccesos: puedeGestionarAccesos(member?.rol, member?.nombre),
     configurationError: false,
   }
 }
@@ -102,8 +103,10 @@ export async function middleware(request: NextRequest) {
   const member = await approvedMember(user.email)
   if (member.configurationError) return pathname.startsWith("/api/") ? apiError("No se pudo validar el acceso", 503) : NextResponse.redirect(new URL("/pendiente", request.url))
   if (!member.ok) return pathname.startsWith("/api/") ? apiError("Acceso pendiente o no autorizado", 403) : NextResponse.redirect(new URL("/pendiente", request.url))
-  if (pathname.startsWith("/api/") && !canAccessApi(pathname, member.role, request.method)) return apiError("Tu cuenta no tiene acceso a este módulo", 403)
-  if (!pathname.startsWith("/api/") && !canAccessPage(pathname, member.role)) return NextResponse.redirect(new URL(homeForRole(member.role), request.url))
+  // Accesos del equipo: además del CEO, los gestores de accesos (lib/role-access); cada handler vuelve a chequearlo.
+  const gestorEnAccesos = !!member.gestorAccesos && esRutaDeAccesos(pathname)
+  if (pathname.startsWith("/api/") && !gestorEnAccesos && !canAccessApi(pathname, member.role, request.method)) return apiError("Tu cuenta no tiene acceso a este módulo", 403)
+  if (!pathname.startsWith("/api/") && !gestorEnAccesos && !canAccessPage(pathname, member.role)) return NextResponse.redirect(new URL(homeForRole(member.role), request.url))
 
   // Las pantallas siguen usando el layout del dashboard para redirigir al
   // login. Mantener esa responsabilidad fuera del middleware evita que la

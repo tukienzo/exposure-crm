@@ -5,7 +5,7 @@ import useSWR from "swr"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-import { Loader2, Check, X, ShieldCheck, Trash2, MonitorSmartphone, TriangleAlert } from "lucide-react"
+import { Loader2, Check, X, ShieldCheck, Trash2, MonitorSmartphone, TriangleAlert, UserPlus } from "lucide-react"
 
 const ROLES = ["Closer", "Setter", "CEO", "Sales Manager", "Manager MKT", "Contaduria", "Cobranzas", "CSM", "Editor"]
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
@@ -19,6 +19,29 @@ export default function AccesosPage() {
   const [activityEmail, setActivityEmail] = useState<string | null>(null)
   const [activity, setActivity] = useState<{ rows: Activity[]; simultaneous: boolean } | null>(null)
   const [activityLoading, setActivityLoading] = useState(false)
+  // Agregar un miembro directo (ya aprobado): CEO o gestor de accesos (Nahuel Carballo).
+  const [nuevo, setNuevo] = useState({ nombre: "", email: "", rol: "", password: "" })
+  const [agregando, setAgregando] = useState(false)
+  const [agregarMsg, setAgregarMsg] = useState<{ ok: boolean; texto: string } | null>(null)
+
+  async function agregarMiembro(e: React.FormEvent) {
+    e.preventDefault()
+    setAgregando(true); setAgregarMsg(null)
+    try {
+      const res = await fetch("/api/team", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(nuevo) })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) { setAgregarMsg({ ok: false, texto: body.error || "No se pudo agregar." }); return }
+      setAgregarMsg({ ok: true, texto: body.yaTeniaLogin
+        ? `${nuevo.nombre} quedó agregado con acceso. Ese mail ya tenía usuario de login: entra con su contraseña de siempre.`
+        : `${nuevo.nombre} quedó agregado con acceso. Pasale su mail y la contraseña inicial para que entre.` })
+      setNuevo({ nombre: "", email: "", rol: "", password: "" })
+      await mutate()
+    } catch {
+      setAgregarMsg({ ok: false, texto: "Error de conexión." })
+    } finally {
+      setAgregando(false)
+    }
+  }
 
   const noAuth = data && !Array.isArray(data)
   const members = Array.isArray(data) ? data : []
@@ -131,7 +154,7 @@ export default function AccesosPage() {
         <ShieldCheck className="h-6 w-6 text-primary" />
         <div>
           <h1 className="text-2xl font-bold text-foreground">Accesos del equipo</h1>
-          <p className="text-sm text-muted-foreground">Aprobá quién entra al CRM y con qué rol</p>
+          <p className="text-sm text-muted-foreground">Agregá miembros, aprobá quién entra al CRM y con qué rol</p>
         </div>
       </div>
 
@@ -139,6 +162,31 @@ export default function AccesosPage() {
         <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
       ) : (
         <div className="space-y-6">
+          <Card className="border border-border">
+            <CardHeader><CardTitle className="flex items-center gap-2 text-base"><UserPlus className="h-4 w-4" />Agregar miembro</CardTitle></CardHeader>
+            <CardContent>
+              <form onSubmit={agregarMiembro} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <input required value={nuevo.nombre} onChange={(e) => setNuevo((n) => ({ ...n, nombre: e.target.value }))} placeholder="Nombre y apellido" aria-label="Nombre y apellido"
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm" />
+                <input required type="email" value={nuevo.email} onChange={(e) => setNuevo((n) => ({ ...n, email: e.target.value }))} placeholder="Mail" aria-label="Mail"
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm" />
+                <select required value={nuevo.rol} onChange={(e) => setNuevo((n) => ({ ...n, rol: e.target.value }))} aria-label="Rol"
+                  className="h-9 rounded-md border border-input bg-background px-2 text-sm">
+                  <option value="">Rol…</option>
+                  {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                </select>
+                <input required type="text" minLength={12} autoComplete="new-password" value={nuevo.password} onChange={(e) => setNuevo((n) => ({ ...n, password: e.target.value }))} placeholder="Contraseña inicial (12+)" aria-label="Contraseña inicial"
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm" />
+                <button type="submit" disabled={agregando}
+                  className="inline-flex h-9 items-center justify-center gap-1.5 rounded-md bg-emerald-600 px-3 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50">
+                  {agregando ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />} Agregar
+                </button>
+              </form>
+              {agregarMsg && <p className={cn("mt-2 text-xs", agregarMsg.ok ? "text-emerald-600" : "text-red-600")}>{agregarMsg.texto}</p>}
+              <p className="mt-2 text-xs text-muted-foreground">Queda aprobado al instante. La persona entra desde el login con ese mail y la contraseña inicial.</p>
+            </CardContent>
+          </Card>
+
           <Card className="border border-border">
             <CardHeader><CardTitle className="text-base">Pendientes {pendientes.length > 0 && <span className="ml-2 text-xs bg-amber-500/15 text-amber-600 rounded-full px-2 py-0.5">{pendientes.length}</span>}</CardTitle></CardHeader>
             <CardContent className="space-y-2">

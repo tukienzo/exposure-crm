@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { createHash } from "crypto"
 import { createSupabaseAdmin } from "@/lib/supabase-admin"
 import { createSupabaseServer } from "@/lib/supabase-server"
-import { effectiveCRMRole } from "@/lib/role-access"
+import { puedeGestionarAccesos } from "@/lib/role-access"
 
 function clientIp(request: Request) {
   return (request.headers.get("x-forwarded-for")?.split(",")[0] || request.headers.get("x-real-ip") || "").trim() || null
@@ -24,7 +24,7 @@ async function requireCEO() {
   if (!user?.email) return null
   const admin = createSupabaseAdmin()
   const { data } = await admin.from("team_members").select("rol,estado,nombre").eq("email", user.email.toLowerCase()).maybeSingle()
-  return data?.estado === "aprobado" && effectiveCRMRole(data.rol, data.nombre) === "CEO" ? admin : null
+  return data?.estado === "aprobado" && puedeGestionarAccesos(data.rol, data.nombre) ? admin : null
 }
 
 export async function POST(request: Request) {

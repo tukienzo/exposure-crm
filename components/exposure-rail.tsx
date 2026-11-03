@@ -12,6 +12,7 @@ import { LogOut, Palette, Search, Settings2, UsersRound } from "lucide-react"
 import { createSupabaseBrowser } from "@/lib/supabase-browser"
 import { Mark } from "@/components/exposure/ui"
 import { GROUP_ORDER, groupColors, isActive, modules, type NavItem } from "@/components/crm-navigation"
+import { puedeGestionarAccesos } from "@/lib/role-access"
 
 const ACENTO = "var(--rail-accent)"
 
@@ -91,7 +92,7 @@ export function ExposureRail({ rol = "", nombre = "", email = "" }: { rol?: stri
           </div>
           <div className="mt-3 grid grid-cols-2 gap-1.5">
             {isManager && <RailMini href="/reglas" icon={<Settings2 size={13} />} label="Reglas" />}
-            {rol === "CEO" && <RailMini href="/accesos" icon={<UsersRound size={13} />} label="Accesos" />}
+            {puedeGestionarAccesos(rol, nombre) && <RailMini href="/accesos" icon={<UsersRound size={13} />} label="Accesos" />}
             <RailMini onClick={abrirAjustes} icon={<Palette size={13} />} label="Ajustes" />
             <RailMini onClick={logout} icon={<LogOut size={13} />} label="Salir" tone="warn" />
           </div>

@@ -14,6 +14,7 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/s
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
 import { LogoExposure } from "@/components/logo-exposure"
+import { puedeGestionarAccesos } from "@/lib/role-access"
 import {
   BarChart3, Bell, BellRing, Calendar, ChartSpline, ChevronDown, CircleDollarSign, Clapperboard, FileText, Gauge, GraduationCap, LayoutGrid, ListChecks, Network, PhoneCall, Users, Wrench,
   Eye, LogOut, Menu, Monitor, Moon, Palette, Radar, RotateCcw, Telescope, Search, Settings2, Sparkles, Sun, Trophy, Type, UserRound,
@@ -320,7 +321,7 @@ function UserMenu({ rol, nombre, email, open, setOpen, isManager, openSettings, 
     </button>
     {open && <><button aria-label="Cerrar" className="fixed inset-0 z-[90]" onClick={() => setOpen(false)} /><div className="absolute right-0 top-12 z-[100] w-60 rounded-2xl border border-[#303038] bg-[#121216]/98 p-2 shadow-2xl backdrop-blur-2xl">
       {isManager && <MenuLink href="/reglas" icon={Settings2} label="Reglas y configuración" />}
-      {rol === "CEO" && <MenuLink href="/accesos" icon={UsersRound} label="Accesos" />}
+      {puedeGestionarAccesos(rol, nombre) && <MenuLink href="/accesos" icon={UsersRound} label="Accesos" />}
       <button onClick={openSettings} className="menu-row"><Palette /><span>Personalización</span></button>
       <button onClick={logout} className="menu-row text-red-300"><LogOut /><span>Cerrar sesión</span></button>
     </div></>}

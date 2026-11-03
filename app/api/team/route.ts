@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { createSupabaseAdmin } from "@/lib/supabase-admin"
 import { createSupabaseServer } from "@/lib/supabase-server"
-import { effectiveCRMRole } from "@/lib/role-access"
+import { puedeGestionarAccesos } from "@/lib/role-access"
 
 const ROLES = ["Closer", "Setter", "CEO", "Sales Manager", "Contaduria", "Cobranzas", "Manager MKT", "CSM", "Editor"]
 const REQUEST_ROLES = ROLES.filter(role => !["CEO", "Cobranzas"].includes(role))
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
   }
 }
 
-// Verifica que quien llama sea un CEO aprobado
+// Verifica que quien llama sea un CEO aprobado o un gestor de accesos (lib/role-access: Nahuel Carballo)
 async function requireCEO() {
   const supabase = await createSupabaseServer()
   const { data: { user } } = await supabase.auth.getUser()
@@ -62,11 +62,11 @@ async function requireCEO() {
     .select("rol,estado,nombre")
     .eq("email", user.email.toLowerCase())
     .maybeSingle()
-  if (data?.estado === "aprobado" && effectiveCRMRole(data?.rol, data?.nombre) === "CEO") return { admin, callerEmail: user.email.toLowerCase() }
+  if (data?.estado === "aprobado" && puedeGestionarAccesos(data?.rol, data?.nombre)) return { admin, callerEmail: user.email.toLowerCase() }
   return null
 }
 
-// GET: lista de miembros (solo CEO)
+// GET: lista de miembros (CEO o gestor de accesos)
 export async function GET() {
   const ctx = await requireCEO()
   if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 403 })
@@ -77,7 +77,31 @@ export async function GET() {
   return NextResponse.json(data || [])
 }
 
-// PATCH: aprobar / rechazar / cambiar rol (solo CEO)
+// PUT: agregar un miembro directo, ya aprobado, con contraseña inicial (CEO o gestor de accesos).
+export async function PUT(request: Request) {
+  const ctx = await requireCEO()
+  if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 403 })
+  const { nombre, email, rol, password } = await request.json().catch(() => ({}))
+  const mail = String(email || "").trim().toLowerCase()
+  const name = String(nombre || "").trim()
+  if (!name || name.length > 100) return NextResponse.json({ error: "Falta el nombre." }, { status: 400 })
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail) || mail.length > 254) return NextResponse.json({ error: "El mail no es válido." }, { status: 400 })
+  if (!ROLES.includes(rol)) return NextResponse.json({ error: "Elegí un rol." }, { status: 400 })
+  if (!password || String(password).length < 12 || String(password).length > 128) return NextResponse.json({ error: "La contraseña inicial tiene que tener al menos 12 caracteres." }, { status: 400 })
+
+  const { data: existing } = await ctx.admin.from("team_members").select("estado").eq("email", mail).maybeSingle()
+  if (existing) return NextResponse.json({ error: `Ese mail ya está en la lista (${existing.estado || "sin estado"}): aprobalo o cambiale el rol desde ahí.` }, { status: 400 })
+
+  const { error: cerr } = await ctx.admin.auth.admin.createUser({ email: mail, password: String(password), email_confirm: true })
+  const yaTeniaLogin = !!cerr && /registered|already|exists/i.test(cerr.message)
+  if (cerr && !yaTeniaLogin) return NextResponse.json({ error: "No se pudo crear el usuario de login." }, { status: 500 })
+
+  const { error } = await ctx.admin.from("team_members").insert({ email: mail, nombre: name, rol, estado: "aprobado" })
+  if (error) return NextResponse.json({ error: "No se pudo guardar el miembro." }, { status: 500 })
+  return NextResponse.json({ ok: true, yaTeniaLogin })
+}
+
+// PATCH: aprobar / rechazar / cambiar rol (CEO o gestor de accesos)
 export async function PATCH(request: Request) {
   const ctx = await requireCEO()
   if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 403 })
@@ -92,7 +116,7 @@ export async function PATCH(request: Request) {
   return NextResponse.json({ ok: true })
 }
 
-// DELETE: revoca tanto la membresía como el usuario de Auth (solo CEO).
+// DELETE: revoca tanto la membresía como el usuario de Auth (CEO o gestor de accesos).
 export async function DELETE(request: Request) {
   const ctx = await requireCEO()
   if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 403 })

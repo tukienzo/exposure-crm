@@ -16,6 +16,21 @@ export function effectiveCRMRole(role: string | null | undefined, name?: string 
   return role ?? null
 }
 
+// Quiénes pueden gestionar los accesos del equipo (agregar, aprobar, cambiar rol, suspender y eliminar
+// miembros) además del CEO. Por nombre completo en team_members. Nahuel Carballo: pedido de Alex del 02/11/2026.
+const GESTORES_DE_ACCESOS = ["nahuel carballo"]
+const RUTAS_DE_ACCESOS = ["/accesos", "/api/team", "/api/security/activity"]
+
+export function puedeGestionarAccesos(role: string | null | undefined, name?: string | null) {
+  if (effectiveCRMRole(role, name) === "CEO") return true
+  const normalizedName = String(name || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase().replace(/\s+/g, " ")
+  return GESTORES_DE_ACCESOS.some((n) => normalizedName === n || normalizedName.startsWith(`${n} `))
+}
+
+export function esRutaDeAccesos(pathname: string) {
+  return RUTAS_DE_ACCESOS.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
+}
+
 const OPERATIONS = ["CEO", "Sales Manager", "Manager MKT"] as CRMRole[]
 const SALES_OPERATIONS = ["CEO", "Sales Manager", "Manager MKT", "Setter", "Closer"] as CRMRole[]
 
