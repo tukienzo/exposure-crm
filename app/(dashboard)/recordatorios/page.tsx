@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
 import useSWR from "swr"
-import { AlertTriangle, CalendarClock, CheckCircle2, Link2, Loader2, MessageCircle, PhoneCall, Receipt, Upload, UserRound, Zap } from "lucide-react"
+import { AlertTriangle, Ban, CalendarClock, CheckCircle2, Link2, Loader2, MessageCircle, PhoneCall, Receipt, RotateCcw, Upload, UserRound, Zap } from "lucide-react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -36,7 +36,8 @@ type Plan = {
   closer: string | null
   telefono: string | null
   operacion?: number | null
-  estado_plan?: "activo" | "inactivo_no_responde" | null
+  estado_plan?: "activo" | "inactivo_no_responde" | "cancelado" | null
+  cancelacion?: { motivo: string | null; fecha: string | null; por: string | null }
   plan_pago_items: Item[]
 }
 
@@ -53,7 +54,7 @@ type Row = Item & {
 
 type Payment = { id: string; cliente: string; monto: number | null; fecha: string | null; tipo: string | null; comprobante?: string | null }
 
-type Vista = "vencidas" | "hoy" | "proximas" | "gestionadas"
+type Vista = "vencidas" | "hoy" | "proximas" | "gestionadas" | "cancelados"
 
 const fetcher = async (url: string) => {
   const response = await fetch(url)
@@ -107,6 +108,9 @@ export default function RecordatoriosPage() {
   const [guardando, setGuardando] = useState<string | null>(null)
   const [form, setForm] = useState({ resultado: "", promesa: "", accion: "", fechaAccion: "" })
   const [clientePago, setClientePago] = useState("")
+  // «Canceló»: el cliente (o quien dejó un fee) decidió no seguir pagando.
+  const [cancelando, setCancelando] = useState<Row | null>(null)
+  const [motivoCancelacion, setMotivoCancelacion] = useState("")
 
   const isManager = ["CEO", "Contaduria", "Sales Manager", "Manager MKT"].includes(session.rol)
 
@@ -114,7 +118,7 @@ export default function RecordatoriosPage() {
     if (!isManager && session.nombre) setCloser(firstName(session.nombre))
   }, [isManager, session.nombre])
 
-  const todas = useMemo(() => (planes || []).filter((plan) => plan.estado_plan !== "inactivo_no_responde").flatMap((plan) =>
+  const todas = useMemo(() => (planes || []).filter((plan) => plan.estado_plan !== "inactivo_no_responde" && plan.estado_plan !== "cancelado").flatMap((plan) =>
     (plan.plan_pago_items || [])
       .filter((item) => item.estado === "pendiente" && item.fecha_planeada)
       .map((item) => ({
@@ -133,6 +137,9 @@ export default function RecordatoriosPage() {
 
   const closers = useMemo(() => Array.from(new Set(todas.map((row) => firstName(row.closer || "")).filter(Boolean))).sort(), [todas])
   const deCartera = useMemo(() => todas.filter((row) => closer === "Todos" || ownerKey(row.closer) === ownerKey(closer)), [todas, closer])
+  const cancelados = useMemo(() => (planes || [])
+    .filter((plan) => plan.estado_plan === "cancelado" && (closer === "Todos" || ownerKey(plan.closer) === ownerKey(closer)))
+    .sort((a, b) => String(b.cancelacion?.fecha || "").localeCompare(String(a.cancelacion?.fecha || ""))), [planes, closer])
   const clientesCartera = useMemo(() => Array.from(
     new Map(deCartera.map((row) => [row.cliente, row])).values(),
   ).sort((a, b) => a.cliente.localeCompare(b.cliente)), [deCartera])
@@ -159,7 +166,8 @@ export default function RecordatoriosPage() {
     hoy: deCartera.filter((row) => row.dias === 0).length,
     proximas: deCartera.filter((row) => row.dias > 0).length,
     gestionadas: deCartera.filter((row) => Boolean(row.ultimo_contacto_at)).length,
-  }), [deCartera])
+    cancelados: cancelados.length,
+  }), [deCartera, cancelados])
 
   const filas = useMemo(() => deCartera.filter((row) => {
     if (vista === "vencidas") return row.dias < 0 && !row.ultimo_contacto_at
@@ -198,6 +206,28 @@ export default function RecordatoriosPage() {
       await mutate()
       setActiva(null)
       toast.success("Listo. La gestión quedó guardada.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo guardar")
+    } finally {
+      setGuardando(null)
+    }
+  }
+
+  async function cambiarEstadoPlan(planId: string, cliente: string, estado: "cancelado" | "activo", motivo?: string) {
+    setGuardando(planId)
+    try {
+      const response = await fetch("/api/planes-pago", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planId, estado_plan: estado, ...(motivo ? { motivo } : {}) }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(data?.error || "No se pudo guardar")
+      await mutate()
+      setCancelando(null)
+      toast.success(estado === "cancelado"
+        ? `${cliente} pasó a Cancelados. Sus cuotas pendientes ya no aparecen para cobrar.`
+        : `${cliente} volvió a la cartera con sus cuotas pendientes.`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo guardar")
     } finally {
@@ -334,17 +364,64 @@ export default function RecordatoriosPage() {
         <Metric label="Contactados" value={String(counts.gestionadas)} helper="con resultado registrado" icon={CheckCircle2} tone="success" />
       </div>
 
-      <div className="glass sticky top-20 z-20 grid grid-cols-2 gap-2 rounded-2xl p-2 sm:grid-cols-4 lg:top-4">
+      <div className="glass sticky top-20 z-20 grid grid-cols-2 gap-2 rounded-2xl p-2 sm:grid-cols-5 lg:top-4">
         <Tab active={vista === "vencidas"} onClick={() => setVista("vencidas")} label="Sin gestionar" count={counts.vencidas} danger />
         <Tab active={vista === "hoy"} onClick={() => setVista("hoy")} label="Vencen hoy" count={counts.hoy} />
         <Tab active={vista === "proximas"} onClick={() => setVista("proximas")} label="Próximas" count={counts.proximas} />
         <Tab active={vista === "gestionadas"} onClick={() => setVista("gestionadas")} label="Gestionadas" count={counts.gestionadas} />
+        <Tab active={vista === "cancelados"} onClick={() => setVista("cancelados")} label="Cancelados" count={counts.cancelados} />
       </div>
 
       {isLoading ? (
         <div className="flex justify-center py-20"><Loader2 className="h-7 w-7 animate-spin" /></div>
       ) : error ? (
         <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">No se pudo cargar la cartera.</div>
+      ) : vista === "cancelados" ? (
+        cancelados.length === 0 ? (
+          <div className="rounded-2xl border border-dashed p-12 text-center">
+            <Ban className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
+            <p className="font-semibold">No hay cancelados</p>
+            <p className="text-sm text-muted-foreground">Cuando alguien decida no seguir pagando, tocá «Canceló» en su cuota y aparece acá.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {cancelados.map((plan) => {
+              const items = plan.plan_pago_items || []
+              const cobrado = items.filter((item) => item.estado === "pagado").reduce((sum, item) => sum + Number(item.monto || 0), 0)
+              const sinCobrar = items.filter((item) => item.estado === "cancelado").reduce((sum, item) => sum + Number(item.monto || 0), 0)
+              return (
+                <article key={plan.id} className="surface overflow-hidden p-4 sm:p-5">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-center">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="truncate text-lg font-bold tracking-tight">{plan.cliente}</h2>
+                        <Badge variant="outline" className="border-red-500/30 text-red-600">Canceló{plan.cancelacion?.fecha ? ` · ${new Date(plan.cancelacion.fecha).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}` : ""}</Badge>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm text-muted-foreground">
+                        <span>Cobrado: <span className="font-semibold text-foreground">USD {cobrado.toLocaleString("es-AR")}</span></span>
+                        <span>Quedó sin cobrar: <span className="font-semibold text-foreground">USD {sinCobrar.toLocaleString("es-AR")}</span></span>
+                        <span className="inline-flex items-center gap-1"><UserRound className="h-3.5 w-3.5" />{firstName(plan.closer || "") || "Sin closer"}</span>
+                      </div>
+                      {plan.cancelacion?.motivo && (
+                        <div className="mt-3 rounded-lg bg-muted/50 px-3 py-2 text-sm">
+                          <span className="font-medium">Motivo:</span> {plan.cancelacion.motivo}
+                          {plan.cancelacion.por && <span className="text-muted-foreground"> · cargó {firstName(plan.cancelacion.por)}</span>}
+                        </div>
+                      )}
+                    </div>
+                    {session.rol !== "Cobranzas" && (
+                      <Button variant="outline" disabled={guardando === plan.id} onClick={() => {
+                        if (window.confirm(`¿Reactivar el plan de ${plan.cliente}? Sus cuotas canceladas vuelven a aparecer para cobrar.`)) void cambiarEstadoPlan(plan.id, plan.cliente, "activo")
+                      }}>
+                        {guardando === plan.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}Reactivar
+                      </Button>
+                    )}
+                  </div>
+                </article>
+              )
+            })}
+          </div>
+        )
       ) : filas.length === 0 ? (
         <div className="rounded-2xl border border-dashed p-12 text-center">
           <CheckCircle2 className="mx-auto mb-3 h-10 w-10 text-emerald-500" />
@@ -399,7 +476,12 @@ export default function RecordatoriosPage() {
                     ) : (
                       <Button variant="secondary" onClick={() => abrirResolver(row)}><Link2 className="mr-2 h-4 w-4" />Resolver pago</Button>
                     )}
-                    <HelpHint className="self-center" text={'"No respondió" reprograma el contacto para mañana. "Prometió pagar" te pide la fecha prometida y crea el próximo recordatorio automáticamente. Ninguno de los dos carga el pago: eso es siempre en "Cargar pago".'} />
+                    {session.rol !== "Cobranzas" && (
+                      <Button variant="outline" className="border-red-500/30 text-red-600 hover:bg-red-500/10 hover:text-red-600" onClick={() => { setCancelando(row); setMotivoCancelacion("") }}>
+                        <Ban className="mr-2 h-4 w-4" />Canceló
+                      </Button>
+                    )}
+                    <HelpHint className="self-center" text={'"No respondió" reprograma el contacto para mañana. "Prometió pagar" te pide la fecha prometida y crea el próximo recordatorio automáticamente. Ninguno de los dos carga el pago: eso es siempre en "Cargar pago". "Canceló" es para cuando la persona decidió no seguir pagando: sus cuotas pendientes salen de la lista y pasa a Cancelados.'} />
                   </div>
                 </div>
               </article>
@@ -421,6 +503,24 @@ export default function RecordatoriosPage() {
               accion: form.accion,
               fechaAccion: form.fechaAccion,
             })}>{guardando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar promesa</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(cancelando)} onOpenChange={(open) => !open && setCancelando(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Canceló · {cancelando?.cliente}</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Las {cancelando?.pendingItems.length || 0} cuota{cancelando?.pendingItems.length === 1 ? "" : "s"} pendiente{cancelando?.pendingItems.length === 1 ? "" : "s"} de este plan
+              (USD {(cancelando?.pendingItems || []).reduce((sum, item) => sum + Number(item.monto || 0), 0).toLocaleString("es-AR")}) dejan de aparecer para cobrar y el plan pasa a Cancelados.
+              Lo que ya pagó no se toca. Si vuelve, se reactiva desde Cancelados.
+            </p>
+            <Field label="Motivo"><Textarea rows={3} value={motivoCancelacion} onChange={(e) => setMotivoCancelacion(e.target.value)} placeholder="Ej: no le alcanza la plata, no quiere seguir con el programa" /></Field>
+            <Button variant="destructive" className="w-full" disabled={!cancelando || !motivoCancelacion.trim() || guardando === cancelando?.planId}
+              onClick={() => cancelando && cambiarEstadoPlan(cancelando.planId, cancelando.cliente, "cancelado", motivoCancelacion.trim())}>
+              {guardando === cancelando?.planId && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Confirmar cancelación
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

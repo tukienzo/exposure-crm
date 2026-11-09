@@ -47,7 +47,8 @@ export async function GET(request: Request) {
             monto: Number(item.monto || 0),
             monto_cobrado: paid ? Number(item.monto || 0) : 0,
             fecha_vencimiento: item.fecha_planeada,
-            estado: paid ? "Cobrado" : item.fecha_planeada && item.fecha_planeada < today ? "Vencido" : "Por Cobrar",
+            // «cancelado»: el cliente decidió no seguir pagando (Cobros y recordatorios → Canceló).
+            estado: paid ? "Cobrado" : item.estado === "cancelado" ? "No Paga" : item.fecha_planeada && item.fecha_planeada < today ? "Vencido" : "Por Cobrar",
             medio_de_pago: item.medio_de_pago,
             closer: plan.closer,
             plan_de_pago: planText,

@@ -61,8 +61,15 @@ export async function GET(request: Request) {
     const { data: stateRows } = planIds.length
       ? await sb.from("crm_operation_requests").select("request_id,result").eq("operation", "payment_plan_status").in("request_id", planIds.map((id) => `plan_status:${id}`))
       : { data: [] as any[] }
-    const states = new Map((stateRows || []).map((row: any) => [String(row.request_id).replace("plan_status:", ""), row.result?.estado_plan]))
-    const enriched = visible.map((plan: any) => ({ ...plan, estado_plan: states.get(String(plan.id)) || "activo" }))
+    const states = new Map((stateRows || []).map((row: any) => [String(row.request_id).replace("plan_status:", ""), row.result || {}]))
+    const enriched = visible.map((plan: any) => {
+      const state = states.get(String(plan.id)) || {}
+      return {
+        ...plan,
+        estado_plan: state.estado_plan || "activo",
+        ...(state.estado_plan === "cancelado" ? { cancelacion: { motivo: state.motivo || null, fecha: state.cancelado_at || null, por: state.cancelado_por || null } } : {}),
+      }
+    })
     return NextResponse.json(pagination ? paginatedPayload(enriched, owner ? enriched.length : count || 0, pagination) : enriched)
   } catch (err) {
     return NextResponse.json({ error: "Error de servidor" }, { status: 500 })
@@ -283,17 +290,56 @@ export async function PATCH(request: Request) {
 
       if (Object.hasOwn(rawUpdates, "estado_plan")) {
         const estadoPlan = String(rawUpdates.estado_plan)
-        if (!new Set(["activo", "inactivo_no_responde"]).has(estadoPlan)) {
+        if (!new Set(["activo", "inactivo_no_responde", "cancelado"]).has(estadoPlan)) {
           return NextResponse.json({ error: "Estado de plan inválido" }, { status: 400 })
         }
+        const requestId = `plan_status:${planId}`
+        const { data: previo } = await sb.from("crm_operation_requests").select("result").eq("request_id", requestId).maybeSingle()
+        const estadoPrevio = previo?.result || {}
+        let result: Record<string, unknown> = { estado_plan: estadoPlan }
+
+        // «Canceló» (09/11/2026): el cliente o quien dejó un fee decidió no seguir pagando. Las cuotas que
+        // seguían pendientes y sin pago pasan a estado «cancelado», así ninguna pantalla las vuelve a mostrar
+        // para cobrar (Cobros, Home, cuotas pendientes, Ciudad). Los pagos ya cobrados no se tocan. Se guardan
+        // los ids para que «Reactivar» devuelva exactamente esas cuotas a pendientes.
+        if (estadoPlan === "cancelado") {
+          const motivo = String(rawUpdates.motivo || "").trim().slice(0, 500)
+          if (!motivo) return NextResponse.json({ error: "Escribí el motivo de la cancelación." }, { status: 400 })
+          let canceladoPor: string | null = null
+          try {
+            const auth = await createSupabaseServer()
+            const { data: { user } } = await auth.auth.getUser()
+            if (user?.email) {
+              const { data: member } = await sb.from("team_members").select("nombre").eq("email", user.email.toLowerCase()).maybeSingle()
+              canceladoPor = member?.nombre || user.email
+            }
+          } catch { /* sin sesión legible: queda sin autor */ }
+          const { data: pendientes, error: pendError } = await sb.from("plan_pago_items").select("id").eq("plan_id", planId).eq("estado", "pendiente").is("pago_id", null)
+          if (pendError) return NextResponse.json({ error: pendError.message }, { status: 500 })
+          const ids = (pendientes || []).map((item) => item.id)
+          if (ids.length) {
+            const { error: cancelError } = await sb.from("plan_pago_items").update({ estado: "cancelado", estado_cobranza: "incobrable" }).in("id", ids)
+            if (cancelError) return NextResponse.json({ error: cancelError.message }, { status: 500 })
+          }
+          const yaCancelados = Array.isArray(estadoPrevio.items_cancelados) ? estadoPrevio.items_cancelados : []
+          result = { estado_plan: "cancelado", motivo, cancelado_at: new Date().toISOString(), cancelado_por: canceladoPor, items_cancelados: [...new Set([...yaCancelados, ...ids])] }
+        } else if (estadoPrevio.estado_plan === "cancelado") {
+          const ids = Array.isArray(estadoPrevio.items_cancelados) ? estadoPrevio.items_cancelados : []
+          if (ids.length) {
+            const { error: restoreError } = await sb.from("plan_pago_items").update({ estado: "pendiente", estado_cobranza: "pendiente" }).in("id", ids).eq("estado", "cancelado")
+            if (restoreError) return NextResponse.json({ error: restoreError.message }, { status: 500 })
+          }
+        }
+
         const { error } = await sb.from("crm_operation_requests").upsert({
-          request_id: `plan_status:${planId}`,
+          request_id: requestId,
           operation: "payment_plan_status",
-          result: { estado_plan: estadoPlan },
+          result,
           completed_at: new Date().toISOString(),
         }, { onConflict: "request_id" })
         if (error) return NextResponse.json({ error: error.message }, { status: 500 })
         delete rawUpdates.estado_plan
+        delete rawUpdates.motivo
         if (Object.keys(rawUpdates).length === 0) return NextResponse.json({ success: true, estado_plan: estadoPlan })
       }
       const updates = Object.fromEntries(Object.entries(rawUpdates).filter(([key]) => PLAN_UPDATE_FIELDS.has(key)))

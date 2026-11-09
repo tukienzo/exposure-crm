@@ -70,7 +70,7 @@ type PlanPago = {
   contenido_contestado: string | null
   fecha_alta: string | null
   fecha_baja: string | null
-  estado_plan?: "activo" | "inactivo_no_responde" | null
+  estado_plan?: "activo" | "inactivo_no_responde" | "cancelado" | null
   plan_pago_items: PlanPagoItem[]
 }
 
@@ -1270,7 +1270,8 @@ function PlanesExistentesTab() {
   }
 
   async function cambiarEstadoPlan(plan: PlanPago) {
-    const inactivo = plan.estado_plan === "inactivo_no_responde"
+    // Un plan cancelado (Cobros y recordatorios → «Canceló») también se reactiva desde acá.
+    const inactivo = plan.estado_plan === "inactivo_no_responde" || plan.estado_plan === "cancelado"
     const nuevoEstado = inactivo ? "activo" : "inactivo_no_responde"
     const accion = inactivo ? "reactivar" : "marcar como No responde / Inactivo"
     if (!confirm(`¿Confirmás que querés ${accion} el plan de ${plan.cliente}?`)) return
@@ -1609,6 +1610,7 @@ function PlanesExistentesTab() {
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-semibold text-sm text-foreground truncate">{plan.cliente}</p>
                       {plan.estado_plan === "inactivo_no_responde" && <Badge variant="outline" className="border-zinc-500/40 text-zinc-400">No responde / Inactivo</Badge>}
+                      {plan.estado_plan === "cancelado" && <Badge variant="outline" className="border-red-500/40 text-red-500">Canceló</Badge>}
                     </div>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
                       <span>{plan.operacion || "Sin operación"}</span>
@@ -1632,7 +1634,7 @@ function PlanesExistentesTab() {
                     <div className="flex flex-wrap gap-2">
                       <Button type="button" variant="outline" size="sm" disabled={updatingPlanId === plan.id} onClick={() => cambiarEstadoPlan(plan)}>
                         {updatingPlanId === plan.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Power className="mr-2 h-4 w-4" />}
-                        {plan.estado_plan === "inactivo_no_responde" ? "Reactivar plan" : "Marcar No responde / Inactivo"}
+                        {plan.estado_plan === "inactivo_no_responde" || plan.estado_plan === "cancelado" ? "Reactivar plan" : "Marcar No responde / Inactivo"}
                       </Button>
                       <Button type="button" variant="outline" size="sm" className="border-red-500/30 text-red-500 hover:bg-red-500/10 hover:text-red-500" disabled={deletingPlanId === plan.id} onClick={() => eliminarPlan(plan)}>
                         {deletingPlanId === plan.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
