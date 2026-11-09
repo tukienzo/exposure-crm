@@ -16,7 +16,7 @@ const PLAN_UPDATE_FIELDS = new Set(["cliente", "telefono", "operacion", "closer"
 const CATEGORIAS_VENTA = new Set(["Front End", "Back End"])
 
 // Clave de dueño de la cartera: primer nombre pasado por los alias del equipo
-// (lib/equipo → alex, nahuel, cristian, tobias, bener). Un nombre desconocido
+// (lib/equipo → alex, nahuel, cristian, tobias, bener, gino). Un nombre desconocido
 // vuelve tal cual: primera palabra, sin tildes, en minúsculas.
 function ownerKey(value: unknown) {
   return nombreCanonico(value)

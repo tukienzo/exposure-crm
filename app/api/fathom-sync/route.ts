@@ -210,8 +210,8 @@ function callType(m: any) {
   if (
     haystack.includes("venta") || haystack.includes("closer") || haystack.includes("auditoria")
     || /\bx exposure\b|\bexposure x\b/.test(title)  // las llamadas de venta se agendan como "Lead x Exposure"
-    || /\bx\s+(nahuel|nahue|nawe|cristian|cris|bener|alex|tobias)\b|\b(nahuel|nahue|nawe|cristian|cris|bener|alex|tobias)\s+x\b/.test(title)  // "Danilo x Nahuel"
-    || /calls? de (nahue|nahuel|cristian|bener|alex|tobias|venta)/.test(norm(m.meeting_type || ""))  // tipo de reunión "Calls de Nahue"
+    || /\bx\s+(nahuel|nahue|nawe|cristian|cris|bener|gino|alex|tobias)\b|\b(nahuel|nahue|nawe|cristian|cris|bener|gino|alex|tobias)\s+x\b/.test(title)  // "Danilo x Nahuel"
+    || /calls? de (nahue|nahuel|cristian|bener|gino|alex|tobias|venta)/.test(norm(m.meeting_type || ""))  // tipo de reunión "Calls de Nahue"
     || CLOSERS_NOMBRE_COMPLETO.some((closer) => haystack.includes(closer))
   ) return "sales"
   return "other"

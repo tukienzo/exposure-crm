@@ -1986,7 +1986,7 @@ export default function ResumenVentasPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-zinc-900 border-white/10 text-white">
-                        {["Nahuel", "Cristian", "Alex", "Tobias", "Bener", "Libre / Recontacto", "Sin Closer"].map(c => (
+                        {["Nahuel", "Cristian", "Alex", "Tobias", "Bener", "Gino", "Libre / Recontacto", "Sin Closer"].map(c => (
                           <SelectItem key={c} value={c}>{c}</SelectItem>
                         ))}
                       </SelectContent>

@@ -7,7 +7,7 @@ export const SALES_MANAGER = "Nahuel"
 
 // Closers reales: Alex y Nahuel hasta junio 2026; desde julio 2026 también
 // Cristian, Tobias y Bener.
-export const CLOSERS_ACTIVOS = ["Alex", "Nahuel", "Cristian", "Tobias", "Bener"]  // Alex (11/09): el closer es Bener (Benner), no Kenneth
+export const CLOSERS_ACTIVOS = ["Alex", "Nahuel", "Cristian", "Tobias", "Bener", "Gino"]  // Alex (11/09): el closer es Bener (Benner), no Kenneth · Gino se suma el 09/11/2026
 
 // Setters por período: Lukas (sep–nov 2025) · Cesar (nov–dic 2025) ·
 // Santi (ene–jun 2026) · Andres (jul–ago 2026) · Maximo (desde ago 2026).
@@ -28,6 +28,7 @@ const ALIAS: Record<string, string> = {
   cristian: "Cristian", cris: "Cristian",
   tobias: "Tobias",
   bener: "Bener", benner: "Bener", "bener.salvod": "Bener",
+  gino: "Gino",
   maximo: "Maximo", maxi: "Maximo", max: "Maximo",
   andres: "Andres",
   santi: "Santi",
