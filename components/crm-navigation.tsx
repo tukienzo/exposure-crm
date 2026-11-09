@@ -79,6 +79,7 @@ export const modules: NavItem[] = [
   { label: "Resumen de setting", href: "/setting-resumen", icon: NotebookPen, match: ["/setting-resumen"], ramp: ramps.agendas, group: "Ventas", roles: ["CEO", "Sales Manager", "Manager MKT", "Setter"] },
   { label: "Resumen de ventas", href: "/ventas/resumen", icon: PhoneCall, match: ["/ventas/resumen"], ramp: ramps.agendas, group: "Ventas", roles: ["CEO", "Sales Manager", "Manager MKT", "Closer", "Setter"] },
   { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle, match: ["/whatsapp"], ramp: ramps.agendas, group: "Ventas", roles: ["CEO", "Sales Manager"] },
+  { label: "Pre-calls", href: "/precalls", icon: MessageCircle, match: ["/precalls"], ramp: ramps.agendas, group: "Ventas", roles: ["CEO", "Sales Manager", "Manager MKT"] },
   { label: "Pagos", href: "/pagos", icon: CircleDollarSign, match: ["/pagos", "/carga-pagos", "/todos-pagos"], ramp: ramps.pagos, group: "Ventas", roles: ["CEO", "Sales Manager", "Manager MKT", "Setter", "Closer", "Contaduria", "CSM"] },
   { label: "Cobros y cuotas", href: "/recordatorios", icon: BellRing, match: ["/cobros", "/recordatorios", "/cuotas", "/planes-pago"], ramp: ramps.cuotas, group: "Ventas", roles: ["CEO", "Sales Manager", "Manager MKT", "Setter", "Closer", "Cobranzas", "Contaduria"] },
   { label: "Leaderboard", href: "/equipo", icon: Trophy, match: ["/equipo", "/esquema-comisiones"], ramp: ramps.leaderboard, group: "Producto", roles: ["CEO", "Sales Manager", "Manager MKT", "Setter", "Closer", "Contaduria"] },

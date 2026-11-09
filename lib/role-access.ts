@@ -52,6 +52,7 @@ const pageRules: Array<[string, CRMRole[]]> = [
   ["/contenido/tipos-agenda", OPERATIONS], // tipo de lead que trae cada pieza (resúmenes del setter)
   ["/setting-resumen", SALES_OPERATIONS],  // generador de resúmenes del setter
   ["/whatsapp", OPERATIONS],               // grupos de WhatsApp del equipo
+  ["/precalls", OPERATIONS],               // chats de precall por lead + resúmenes (09/11/2026)
   ["/testimonios", [...OPERATIONS, "CSM", "Editor"]],
   ["/youtube", [...OPERATIONS, "Editor"]],   // videos largos del canal + los clips de cada uno
   ["/ciudad", OPERATIONS],                   // Exposure OS · vista ciudad (todo el negocio en 3D, solo lectura)
@@ -101,6 +102,7 @@ const apiRules: Array<[string, CRMRole[]]> = [
   ["/api/ventas/resumen", SALES_OPERATIONS],
   ["/api/agendas-incompletas", ["CEO", "Sales Manager"]],
   ["/api/whatsapp", OPERATIONS],
+  ["/api/precalls", OPERATIONS],
   ["/api/security/activity", CRM_ROLES as unknown as CRMRole[]],
   ["/api/push", CRM_ROLES as unknown as CRMRole[]],   // suscripción a avisos push de este dispositivo (quién recibe qué se decide en lib/push.ts)
   ["/api/operations-health", ["CEO"]],

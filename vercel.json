@@ -98,6 +98,14 @@
     {
       "path": "/api/hammer-audience-sync",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/precalls-sync?paso=vincular",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/precalls-sync?paso=resumen",
+      "schedule": "30 6 * * *"
     }
   ]
 }

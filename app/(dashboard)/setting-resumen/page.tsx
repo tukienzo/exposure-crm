@@ -112,7 +112,10 @@ export default function SettingResumenPage() {
 
   return <div className="mx-auto w-full max-w-[1800px] space-y-6 px-4 py-5 sm:px-6 lg:px-[1.5cm]">
     <div>
-      <h1 className="text-2xl font-black">Resumen de setting</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-black">Resumen de setting</h1>
+        {["CEO", "Sales Manager", "Manager MKT"].includes(session.rol) && <a href="/precalls" className="inline-flex items-center gap-1.5 rounded-md border border-white/15 px-3 py-1.5 text-sm hover:bg-white/5"><MessageCircle className="h-4 w-4" />Ver chats de precall</a>}
+      </div>
       <p className="max-w-3xl text-sm text-muted-foreground">Pegá las notas crudas del día tal como las escribís en el bloc de notas. Sale el reporte del día (números + lead por lead), un mensaje listo para WhatsApp y, al guardar, queda en el CRM: cada lead cruzado con su agenda, el panel y las métricas del setter.</p>
     </div>
 
