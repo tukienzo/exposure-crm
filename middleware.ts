@@ -10,7 +10,8 @@ function hasIndependentAuth(pathname: string, method: string) {
   if (pathname === "/api/dedup-agus") return true;
   return pathname.startsWith("/api/ingest/")
     || ["/api/fathom-sync", "/api/fathom-show-reconcile", "/api/manychat-sync", "/api/iclosed-sync", "/api/lead-scoring-sync", "/api/operations-refresh", "/api/finance-monthly-refresh", "/api/sheet-sync", "/api/sheet-pull", "/api/cron-diario", "/api/ventas-diario", "/api/whatsapp-ingest", "/api/youtube-sync", "/api/radar-sync", "/api/hammer-audience-sync", "/api/precalls-sync"].includes(pathname)
-    || (method === "POST" && (pathname === "/api/cuotas" || pathname === "/api/strikes" || pathname === "/api/webhooks/2chat-precall")) // 2chat-precall: valida ?token= en el handler
+    || (method === "POST" && (pathname === "/api/cuotas" || pathname === "/api/strikes"))
+    || pathname === "/api/webhooks/2chat-precall" || pathname.startsWith("/api/webhooks/2chat-precall/") // 2chat-precall: valida el token en el handler (GET/HEAD solo responden 200)
 }
 
 function apiError(message: string, status: number) {
