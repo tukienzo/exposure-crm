@@ -120,6 +120,9 @@ export async function GET(request: Request) {
     if (angle) query = query.eq("angle", angle)
     if (format) query = query.eq("format", format)
     if (status) query = query.in("status", status.split(",").filter(Boolean))
+    // Lo archivado ("historical") vive en la Papelera: no aparece en ninguna vista salvo que
+    // se pida por estado o se abra una pieza puntual por id.
+    else if (!contentAssetId) query = query.neq("status", "historical")
     if (q) query = query.or(`title.ilike.%${q}%,script_text.ilike.%${q}%`)
     query = query
       .order("planned_at", { ascending: true, nullsFirst: false })
@@ -328,7 +331,26 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const sb = getSupabase()
-    const { id } = await request.json()
+    const body = await request.json()
+    const { id } = body
+
+    // Papelera: borrado definitivo, solo de piezas ya archivadas y gestionadas por el workspace.
+    if (body.definitivo) {
+      let del = sb.from("crm_content_assets").delete({ count: "exact" })
+        .eq("status", "historical")
+        .or("source_key.like.manual:%,source_key.like.notion-planner:%")
+      if (body.todos) {
+        // Vacía toda la papelera (feed e historias); los ids opcionales la limitan a lo que se vio.
+        if (Array.isArray(body.ids) && body.ids.length) del = del.in("id", body.ids.map(String))
+      } else {
+        if (!id) return NextResponse.json({ error: "ID requerido" }, { status: 400 })
+        del = del.eq("id", id)
+      }
+      const { error: delError, count } = await del
+      if (delError) return NextResponse.json({ error: delError.message }, { status: 500 })
+      return NextResponse.json({ ok: true, borradas: count ?? 0 })
+    }
+
     if (!id) return NextResponse.json({ error: "ID requerido" }, { status: 400 })
 
     const { data: existing, error: fetchError } = await sb

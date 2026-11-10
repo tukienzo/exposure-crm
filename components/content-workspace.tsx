@@ -217,7 +217,7 @@ export function ContentWorkspace() {
   const canEdit = session.email !== "preview@yin-yang.local"
   const canCreateOrDelete = canEdit && session.rol !== "Editor"
   const initialRecordingView = searchParams.get("view") === "grabar"
-  const [view, setView] = useState<"semana" | "calendario" | "pipeline" | "stories" | "grabar" | "biblioteca">(initialRecordingView ? "grabar" : "semana")
+  const [view, setView] = useState<"semana" | "calendario" | "pipeline" | "stories" | "grabar" | "biblioteca" | "papelera">(initialRecordingView ? "grabar" : "semana")
   const [weekOffset, setWeekOffset] = useState(0)
   const [editing, setEditing] = useState<ContentRow | null>(null)
   const [creating, setCreating] = useState(false)
@@ -411,7 +411,7 @@ export function ContentWorkspace() {
   }
 
   async function deleteRow(id: string) {
-    if (!confirm("¿Archivar esta pieza? Va a salir del calendario, pero se conserva y puede recuperarse.")) return
+    if (!confirm("¿Mandar esta pieza a la Papelera? Sale del calendario; desde la Papelera se puede restaurar o eliminar para siempre.")) return
     try {
       const res = await fetch("/api/content-workspace", {
         method: "DELETE",
@@ -420,7 +420,7 @@ export function ContentWorkspace() {
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || "No se pudo borrar")
-      toast.success("Pieza archivada. No se borró ningún dato.")
+      toast.success("Pieza enviada a la Papelera.")
       mutateAll()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al borrar")
@@ -433,13 +433,16 @@ export function ContentWorkspace() {
         <span className="rounded-xl bg-fuchsia-400 px-4 py-2.5 text-xs font-black text-zinc-950">CONTENIDO EXPOSURE</span>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="grid w-full max-w-3xl grid-cols-2 gap-1.5 rounded-2xl border border-border bg-muted/40 p-1.5 sm:grid-cols-3 lg:w-auto lg:grid-cols-6">
+        <div className="grid w-full max-w-3xl grid-cols-2 gap-1.5 rounded-2xl border border-border bg-muted/40 p-1.5 sm:grid-cols-3 lg:w-auto lg:grid-cols-7">
           <button onClick={() => setView("semana")} className={cn("rounded-xl px-4 py-2 text-xs font-black transition", view === "semana" ? "bg-background text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:bg-background/60")}>Esta semana</button>
           <button onClick={() => setView("calendario")} className={cn("rounded-xl px-4 py-2 text-xs font-black transition", view === "calendario" ? "bg-background text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:bg-background/60")}>Calendario</button>
           <button onClick={() => setView("pipeline")} className={cn("rounded-xl px-4 py-2 text-xs font-black transition", view === "pipeline" ? "bg-background text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:bg-background/60")}>Pipeline</button>
           <button onClick={() => setView("stories")} className={cn("rounded-xl px-4 py-2 text-xs font-black transition", view === "stories" ? "bg-fuchsia-500 text-white shadow" : "text-muted-foreground hover:bg-background/60")}>Calendario Stories</button>
           <button onClick={() => { setWeekOffset(0); setView("grabar") }} className={cn("rounded-xl px-4 py-2 text-xs font-black transition", view === "grabar" ? "bg-red-500 text-white shadow shadow-red-500/25" : "text-muted-foreground hover:bg-muted")}><Play className="mr-1 inline h-3.5 w-3.5" />Grabar ya</button>
           <button onClick={() => setView("biblioteca")} className={cn("rounded-xl px-4 py-2 text-xs font-black transition", view === "biblioteca" ? "bg-background text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:bg-background/60")}>Biblioteca / Calendario</button>
+          {canCreateOrDelete && (
+            <button onClick={() => setView("papelera")} className={cn("rounded-xl px-4 py-2 text-xs font-black transition", view === "papelera" ? "bg-background text-foreground shadow-sm ring-1 ring-border" : "text-muted-foreground hover:bg-background/60")}><Trash2 className="mr-1 inline h-3.5 w-3.5" />Papelera</button>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {/* Avisos push a dirección cuando un editor mueve una pieza (grabado → producción → revisar). */}
@@ -458,6 +461,8 @@ export function ContentWorkspace() {
           Estás viendo el Preview público. Iniciá sesión con una cuenta aprobada del equipo para crear, editar y calendarizar piezas.
         </div>
       )}
+
+      {view === "papelera" && <PapeleraContenido onCambio={() => mutateAll()} />}
 
       {view === "pipeline" && (
         pipelineLoading ? (
@@ -505,7 +510,7 @@ export function ContentWorkspace() {
       )}
 
       {/* El pipeline ya se dibujó arriba: acá se corta para no mostrar además el vacío de las otras vistas. */}
-      {view === "pipeline" ? null : view === "stories" ? (
+      {view === "pipeline" || view === "papelera" ? null : view === "stories" ? (
         <StoriesCalendar canEdit={canCreateOrDelete} />
       ) : view === "grabar" && !isLoading ? (
         <div className="space-y-4">
@@ -1152,6 +1157,95 @@ function RecordingField({ label, value, prominent = false }: { label: string; va
       <div className={cn("whitespace-pre-wrap rounded-2xl border border-white/[.08] bg-black/25 p-4 leading-relaxed text-white/80", prominent ? "text-base sm:text-lg" : "text-sm")}>
         {String(value || "").trim() || "—"}
       </div>
+    </div>
+  )
+}
+
+
+// Papelera: las piezas archivadas (estado "historical"). Se restauran a su estado anterior o se
+// eliminan para siempre; mientras están acá no aparecen en Semana, Calendario, Pipeline ni Biblioteca.
+function PapeleraContenido({ onCambio }: { onCambio: () => void }) {
+  const key = "/api/content-workspace?managed_only=1&status=historical&limit=500"
+  const { data, isLoading, mutate } = useSWR<ApiResponse>(key, fetcher)
+  const [ocupado, setOcupado] = useState<string | null>(null)
+  const rows = [...(data?.rows || [])].sort((a, b) => {
+    const fa = String(a.metadata?.archived_at || a.updated_at || "")
+    const fb = String(b.metadata?.archived_at || b.updated_at || "")
+    return fb.localeCompare(fa)
+  })
+
+  async function restaurar(row: ContentRow) {
+    setOcupado(row.id)
+    try {
+      const previo = String(row.metadata?.archived_from_status || "")
+      const status = previo && previo !== "historical" ? previo : "idea"
+      const res = await fetch("/api/content-workspace", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: row.id, status }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error || "No se pudo restaurar")
+      toast.success(`Restaurada como «${statusMeta(status).label}».`)
+      await mutate(); onCambio()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo restaurar")
+    } finally { setOcupado(null) }
+  }
+
+  async function eliminar(ids: string[] | null, row?: ContentRow) {
+    const texto = row
+      ? `¿Eliminar para siempre «${row.title}»? No se puede deshacer.`
+      : `¿Vaciar la papelera? Se eliminan para siempre ${rows.length} piezas. No se puede deshacer.`
+    if (!confirm(texto)) return
+    setOcupado(row ? row.id : "todas")
+    try {
+      const res = await fetch("/api/content-workspace", {
+        method: "DELETE", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(row ? { id: row.id, definitivo: true } : { todos: true, ids, definitivo: true }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error || "No se pudo eliminar")
+      toast.success(row ? "Pieza eliminada." : `Papelera vacía: ${json.borradas ?? 0} piezas eliminadas.`)
+      await mutate(); onCambio()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo eliminar")
+    } finally { setOcupado(null) }
+  }
+
+  if (isLoading) return <div className="flex items-center justify-center py-16"><Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /></div>
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          {rows.length ? `${rows.length} piezas archivadas. No aparecen en ninguna otra vista.` : "La papelera está vacía."}
+        </p>
+        {rows.length > 0 && (
+          <Button size="sm" variant="destructive" disabled={!!ocupado} onClick={() => eliminar(rows.map((r) => r.id))}>
+            {ocupado === "todas" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Trash2 className="mr-1.5 h-4 w-4" />}Vaciar papelera
+          </Button>
+        )}
+      </div>
+      {rows.length > 0 && (
+        <div className="divide-y divide-border overflow-hidden rounded-2xl border border-border">
+          {rows.map((row) => (
+            <div key={row.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold">{row.title || "Sin título"}</p>
+                <p className="text-xs text-muted-foreground">
+                  {[row.planned_at ? row.planned_at.slice(0, 10) : "Sin fecha", row.format, row.metadata?.content_type === "stories" ? "Historia" : null].filter(Boolean).join(" · ")}
+                </p>
+              </div>
+              <Button size="sm" variant="outline" disabled={!!ocupado} onClick={() => restaurar(row)}>
+                {ocupado === row.id ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : null}Restaurar
+              </Button>
+              <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-600" disabled={!!ocupado} onClick={() => eliminar(null, row)}>
+                <Trash2 className="mr-1.5 h-4 w-4" />Eliminar
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
