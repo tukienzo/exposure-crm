@@ -80,7 +80,7 @@ function agrupar(rows: PiezaSemana[]) {
 
 // ───────────────────────────── el bloquecito de una pieza ─────────────────────────────
 
-function Pieza({ row, categoria, onOpen, compacta = false, dosLineas = false }: { row: PiezaSemana; categoria: string | null; onOpen: () => void; compacta?: boolean; dosLineas?: boolean }) {
+function Pieza({ row, categoria, onOpen, compacta = false, dosLineas = false, onPointerDown, enVuelo = false }: { row: PiezaSemana; categoria: string | null; onOpen: () => void; compacta?: boolean; dosLineas?: boolean; onPointerDown?: (e: React.PointerEvent) => void; enVuelo?: boolean }) {
   const color = colorAngulo(categoria)
   const hora = horaDe(row)
   const listo = LISTO.has(row.status)
@@ -88,11 +88,14 @@ function Pieza({ row, categoria, onOpen, compacta = false, dosLineas = false }: 
     <button
       type="button"
       onClick={onOpen}
+      onPointerDown={onPointerDown}
       title={`${row.title}${row.angle ? ` · ${row.angle}` : ""}`}
       className={cn(
         "group relative w-full overflow-hidden rounded-lg border bg-card p-2 pl-3 text-left transition",
         "hover:border-foreground/25 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         listo ? "border-border/60" : "border-border",
+        onPointerDown && "cursor-grab active:cursor-grabbing",
+        enVuelo && "opacity-30",
       )}
     >
       {/* barra lateral del color de la categoría del ángulo */}
@@ -115,15 +118,122 @@ function Pieza({ row, categoria, onOpen, compacta = false, dosLineas = false }: 
   )
 }
 
+// ───────────────────────────── mover piezas de día (arrastrar) ─────────────────────────────
+
+// Fecha nueva conservando la hora: si se suelta en una franja horaria del calendario, toma esa hora.
+function fechaMovida(original: string | null, dia: string, hora: number | null) {
+  if (hora !== null) return `${dia}T${String(hora).padStart(2, "0")}:00:00+00:00`
+  const o = String(original || "")
+  return o.length > 10 ? `${dia}${o.slice(10)}` : dia
+}
+
+// Mismo arrastre propio del pipeline (eventos de puntero, no el drag nativo, que se traba en un
+// botón). Las celdas destino llevan data-dia y, en el calendario, data-hora.
+function useArrastreDia(rows: PiezaSemana[], onMoverDia?: (row: PiezaSemana, plannedAt: string) => Promise<void>) {
+  const [movidas, setMovidas] = useState<Record<string, string>>({})
+  const [arrastre, setArrastre] = useState<{ id: string; x: number; y: number; ancho: number } | null>(null)
+  const [destino, setDestino] = useState<string | null>(null)
+  const pendiente = useRef<{ id: string; x: number; y: number; ancho: number; dx: number; dy: number } | null>(null)
+  const arrastro = useRef(false)
+
+  // Cuando llegan los datos nuevos del servidor, lo movido en pantalla ya no hace falta.
+  useEffect(() => {
+    setMovidas((previas) => {
+      const quedan = Object.entries(previas).filter(([id, fecha]) => {
+        const row = rows.find((r) => r.id === id)
+        return row ? new Date(String(row.planned_at)).getTime() !== new Date(fecha).getTime() : false
+      })
+      return quedan.length === Object.keys(previas).length ? previas : Object.fromEntries(quedan)
+    })
+  }, [rows])
+
+  const vistas = useMemo(
+    () => rows.map((r) => (movidas[r.id] !== undefined ? { ...r, planned_at: movidas[r.id] } : r)),
+    [rows, movidas],
+  )
+
+  const celdaEn = (x: number, y: number) => {
+    const el = document.elementFromPoint(x, y)?.closest("[data-dia]")
+    if (!el) return null
+    const hora = el.getAttribute("data-hora")
+    return { dia: el.getAttribute("data-dia") as string, hora: hora === null ? null : Number(hora) }
+  }
+
+  useEffect(() => {
+    if (!onMoverDia) return
+    const mover_ = (e: PointerEvent) => {
+      const p = pendiente.current
+      if (!p) return
+      if (!arrastro.current && Math.hypot(e.clientX - p.x, e.clientY - p.y) < 6) return
+      if (!arrastro.current) { arrastro.current = true; document.body.style.userSelect = "none" }
+      e.preventDefault()
+      setArrastre({ id: p.id, x: e.clientX - p.dx, y: e.clientY - p.dy, ancho: p.ancho })
+      const c = celdaEn(e.clientX, e.clientY)
+      setDestino(c ? `${c.dia}|${c.hora ?? ""}` : null)
+    }
+    const soltar = async (e: PointerEvent) => {
+      const p = pendiente.current
+      pendiente.current = null
+      document.body.style.userSelect = ""
+      setArrastre(null); setDestino(null)
+      if (!p || !arrastro.current) { arrastro.current = false; return }
+      setTimeout(() => { arrastro.current = false }, 0)
+      const row = vistas.find((r) => r.id === p.id)
+      const c = celdaEn(e.clientX, e.clientY)
+      if (!row || !c) return
+      if (c.hora === null && diaDe(row) === c.dia) return
+      const nueva = fechaMovida(row.planned_at, c.dia, c.hora)
+      if (nueva === row.planned_at) return
+      setMovidas((m) => ({ ...m, [row.id]: nueva }))
+      try {
+        await onMoverDia(row, nueva)
+      } catch (err) {
+        setMovidas((m) => { const copia = { ...m }; delete copia[row.id]; return copia })
+        toast.error(err instanceof Error ? err.message : "No se pudo mover la pieza")
+      }
+    }
+    window.addEventListener("pointermove", mover_, { passive: false })
+    window.addEventListener("pointerup", soltar)
+    window.addEventListener("pointercancel", soltar)
+    return () => {
+      window.removeEventListener("pointermove", mover_)
+      window.removeEventListener("pointerup", soltar)
+      window.removeEventListener("pointercancel", soltar)
+    }
+  })
+
+  // Con el dedo no se arrastra (el tablero tiene que poder scrollear): en el celular se cambia la fecha en la ficha.
+  const empezar = onMoverDia ? (e: React.PointerEvent, row: PiezaSemana) => {
+    if (e.button !== 0 || e.pointerType === "touch") return
+    const caja = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    pendiente.current = { id: row.id, x: e.clientX, y: e.clientY, ancho: caja.width, dx: e.clientX - caja.left, dy: e.clientY - caja.top }
+  } : null
+  // El click que llega al soltar no tiene que abrir la ficha.
+  const abrir = (fn: () => void) => () => { if (!arrastro.current) fn() }
+  const enVuelo = vistas.find((r) => r.id === arrastre?.id) || null
+  return { vistas, empezar, abrir, arrastre, destino, enVuelo }
+}
+
+function Fantasma({ arrastre, row, categoria }: { arrastre: { x: number; y: number; ancho: number } | null; row: PiezaSemana | null; categoria: string | null }) {
+  if (!arrastre || !row) return null
+  return (
+    <div className="pointer-events-none fixed z-50 rotate-1 shadow-xl" style={{ left: arrastre.x, top: arrastre.y, width: arrastre.ancho }}>
+      <Pieza row={row} categoria={categoria} onOpen={() => {}} />
+    </div>
+  )
+}
+
 // ───────────────────────────── vista 1: tablero por día ─────────────────────────────
 
-export function TableroSemana({ start, rows, onOpen, onNueva }: {
+export function TableroSemana({ start, rows: rowsServidor, onOpen, onNueva, onMoverDia }: {
   start: string
   rows: PiezaSemana[]
   onOpen: (row: PiezaSemana) => void
   onNueva?: (fecha: string) => void
+  onMoverDia?: (row: PiezaSemana, plannedAt: string) => Promise<void>
 }) {
   const { categoriaDe } = useAngulos()
+  const { vistas: rows, empezar, abrir, arrastre, destino, enVuelo } = useArrastreDia(rowsServidor, onMoverDia)
   const dias = useMemo(() => diasDeLaSemana(start), [start])
   const porDia = useMemo(() => agrupar(rows), [rows])
   const sinFecha = porDia.get("sin-fecha") || []
@@ -139,9 +249,11 @@ export function TableroSemana({ start, rows, onOpen, onNueva }: {
           return (
             <section
               key={dia}
+              data-dia={dia}
               className={cn(
-                "flex min-h-[132px] flex-col rounded-xl border bg-muted/30 p-2",
+                "flex min-h-[132px] flex-col rounded-xl border bg-muted/30 p-2 transition-colors",
                 esHoy ? "border-primary/50 bg-primary/[.06]" : "border-border",
+                destino === `${dia}|` && "border-primary bg-primary/10 ring-2 ring-primary/40",
               )}
             >
               <header className="mb-2 flex items-baseline justify-between px-1">
@@ -154,7 +266,8 @@ export function TableroSemana({ start, rows, onOpen, onNueva }: {
               </header>
               <div className="flex flex-1 flex-col gap-1.5">
                 {piezas.map((row) => (
-                  <Pieza key={row.id} row={row} categoria={categoriaDe(row.angle)} onOpen={() => onOpen(row)} />
+                  <Pieza key={row.id} row={row} categoria={categoriaDe(row.angle)} onOpen={abrir(() => onOpen(row))}
+                    onPointerDown={empezar ? (e) => empezar(e, row) : undefined} enVuelo={arrastre?.id === row.id} />
                 ))}
                 {!piezas.length && <p className="px-1 py-3 text-center text-[11px] text-muted-foreground/70">Sin piezas</p>}
               </div>
@@ -175,22 +288,26 @@ export function TableroSemana({ start, rows, onOpen, onNueva }: {
         <section className="rounded-xl border border-dashed border-border bg-muted/30 p-3">
           <p className="mb-2 text-[11px] font-black uppercase tracking-wider text-muted-foreground">Sin fecha ({sinFecha.length})</p>
           <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-            {sinFecha.map((row) => <Pieza key={row.id} row={row} categoria={categoriaDe(row.angle)} onOpen={() => onOpen(row)} />)}
+            {sinFecha.map((row) => <Pieza key={row.id} row={row} categoria={categoriaDe(row.angle)} onOpen={abrir(() => onOpen(row))}
+              onPointerDown={empezar ? (e) => empezar(e, row) : undefined} enVuelo={arrastre?.id === row.id} />)}
           </div>
         </section>
       )}
+      <Fantasma arrastre={arrastre} row={enVuelo} categoria={enVuelo ? categoriaDe(enVuelo.angle) : null} />
     </div>
   )
 }
 
 // ───────────────────────────── vista 2: calendario por hora ─────────────────────────────
 
-export function CalendarioSemana({ start, rows, onOpen }: {
+export function CalendarioSemana({ start, rows: rowsServidor, onOpen, onMoverDia }: {
   start: string
   rows: PiezaSemana[]
   onOpen: (row: PiezaSemana) => void
+  onMoverDia?: (row: PiezaSemana, plannedAt: string) => Promise<void>
 }) {
   const { categoriaDe } = useAngulos()
+  const { vistas: rows, empezar, abrir, arrastre, destino, enVuelo } = useArrastreDia(rowsServidor, onMoverDia)
   const dias = useMemo(() => diasDeLaSemana(start), [start])
   const porDia = useMemo(() => agrupar(rows), [rows])
   const hoy = HOY()
@@ -237,9 +354,10 @@ export function CalendarioSemana({ start, rows, onOpen }: {
           <div className="grid grid-cols-[56px_repeat(7,minmax(0,1fr))] border-b border-border bg-muted/30">
             <div className="px-2 py-2 text-right text-[10px] font-bold uppercase text-muted-foreground">Sin hora</div>
             {dias.map((dia) => (
-              <div key={dia} className="space-y-1 border-l border-border p-1.5">
+              <div key={dia} data-dia={dia} className={cn("space-y-1 border-l border-border p-1.5", destino === `${dia}|` && "bg-primary/15")}>
                 {(sinHora.get(dia) || []).map((row) => (
-                  <Pieza key={row.id} row={row} categoria={categoriaDe(row.angle)} onOpen={() => onOpen(row)} compacta />
+                  <Pieza key={row.id} row={row} categoria={categoriaDe(row.angle)} onOpen={abrir(() => onOpen(row))} compacta
+                    onPointerDown={empezar ? (e) => empezar(e, row) : undefined} enVuelo={arrastre?.id === row.id} />
                 ))}
               </div>
             ))}
@@ -253,9 +371,10 @@ export function CalendarioSemana({ start, rows, onOpen }: {
               const piezas = celda(dia, hora)
               const esHoy = dia === hoy
               return (
-                <div key={dia} className={cn("space-y-1 border-l border-border p-1.5", esHoy && "bg-primary/[.04]")}>
+                <div key={dia} data-dia={dia} data-hora={hora} className={cn("space-y-1 border-l border-border p-1.5", esHoy && "bg-primary/[.04]", destino === `${dia}|${hora}` && "bg-primary/15")}>
                   {piezas.map((row) => (
-                    <Pieza key={row.id} row={row} categoria={categoriaDe(row.angle)} onOpen={() => onOpen(row)} compacta />
+                    <Pieza key={row.id} row={row} categoria={categoriaDe(row.angle)} onOpen={abrir(() => onOpen(row))} compacta
+                      onPointerDown={empezar ? (e) => empezar(e, row) : undefined} enVuelo={arrastre?.id === row.id} />
                   ))}
                 </div>
               )
@@ -263,6 +382,7 @@ export function CalendarioSemana({ start, rows, onOpen }: {
           </div>
         ))}
       </div>
+      <Fantasma arrastre={arrastre} row={enVuelo} categoria={enVuelo ? categoriaDe(enVuelo.angle) : null} />
     </div>
   )
 }

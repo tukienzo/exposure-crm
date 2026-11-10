@@ -389,6 +389,19 @@ export function ContentWorkspace() {
     mutateWeek(); mutateLib()
   }
 
+  // Arrastrar una pieza a otro día (Esta semana / Calendario) le cambia la fecha programada.
+  async function moverDia(row: { id: string }, plannedAt: string) {
+    const res = await fetch("/api/content-workspace", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: row.id, planned_at: plannedAt }),
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(json.error || "No se pudo mover la pieza")
+    await mutateWeek()
+    mutateLib(); mutatePipeline()
+  }
+
   async function saveRow(id: string | null, payload: Record<string, unknown>) {
     try {
       const res = await fetch("/api/content-workspace", {
@@ -575,9 +588,9 @@ export function ContentWorkspace() {
           {view === "semana" ? "No hay piezas calendarizadas para esta semana." : "No hay piezas que coincidan con el filtro."}
         </div>
       ) : view === "semana" ? (
-        <TableroSemana start={start} rows={rows} onOpen={(row) => setEditing(rows.find((r) => r.id === row.id) || null)} onNueva={(fecha) => { setFechaNueva(fecha); setCreating(true) }} />
+        <TableroSemana start={start} rows={rows} onOpen={(row) => setEditing(rows.find((r) => r.id === row.id) || null)} onNueva={(fecha) => { setFechaNueva(fecha); setCreating(true) }} onMoverDia={canEdit ? moverDia : undefined} />
       ) : view === "calendario" ? (
-        <CalendarioSemana start={start} rows={rows} onOpen={(row) => setEditing(rows.find((r) => r.id === row.id) || null)} />
+        <CalendarioSemana start={start} rows={rows} onOpen={(row) => setEditing(rows.find((r) => r.id === row.id) || null)} onMoverDia={canEdit ? moverDia : undefined} />
       ) : (
         <div className="space-y-4">
           {grouped.map(([dateKey, items]) => {
