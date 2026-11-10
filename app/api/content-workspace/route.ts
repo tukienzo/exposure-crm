@@ -115,7 +115,15 @@ export async function GET(request: Request) {
       query = query.or("metadata->>content_type.is.null,metadata->>content_type.neq.stories")
     }
     if (start) query = query.gte("planned_at", start)
-    if (end) query = query.lte("planned_at", end)
+    if (end) {
+      // Con una fecha sola ("2026-11-15") el último día entra entero: si no, una pieza del domingo
+      // con hora (12:00) quedaba afuera de la semana.
+      if (/^\d{4}-\d{2}-\d{2}$/.test(end)) {
+        const siguiente = new Date(`${end}T00:00:00Z`)
+        siguiente.setUTCDate(siguiente.getUTCDate() + 1)
+        query = query.lt("planned_at", siguiente.toISOString().slice(0, 10))
+      } else query = query.lte("planned_at", end)
+    }
     if (assignedTo) query = query.in("assigned_to", assignedTo.split(",").filter(Boolean))
     if (angle) query = query.eq("angle", angle)
     if (format) query = query.eq("format", format)
