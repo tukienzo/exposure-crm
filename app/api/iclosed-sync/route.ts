@@ -39,6 +39,8 @@ function utmFields(call: any): Record<string, string> {
 // esas agendas tienen fuente propia, el resto sigue como "Instagram".
 const fuenteDeUtm = (u: Record<string, string>) => {
   if (/^demo-?app$/i.test(u.utm_source || "")) return "Demo app"
+  // Hammer Them «agenda directa» a los calificados del webinar 3/11 (landing de Vercel, utm_content = creativo)
+  if (/^agenda-directa/i.test(u.utm_campaign || "")) return "Hammer agenda directa"
   if (/^(yt|youtube)$/i.test(u.utm_source || "") || /youtube/i.test(u.utm_medium || "")) return "YouTube"
   return null
 }
