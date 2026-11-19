@@ -107,8 +107,17 @@ function hostName(call: any): string | null {
   return canonicalCloserName(full)
 }
 
-// Calendarios de venta a importar. Vacío = todos los del workspace (EXPOSURE tiene uno solo).
-const EVENT_IDS = (process.env.ICLOSED_EVENT_IDS || "").split(",").map((x) => Number(x.trim())).filter((n) => Number.isFinite(n) && n > 0)
+// Calendarios de venta a importar por cuenta. Vacío = todos los de esa cuenta.
+const idsDe = (v?: string) => (v || "").split(",").map((x) => Number(x.trim())).filter((n) => Number.isFinite(n) && n > 0)
+// Cuentas (workspaces) de iClosed. Desde el 16/11/2026 las llamadas de venta se agendan en una cuenta nueva
+// (ICLOSED_API_KEY_2, calendario «Llamada de Auditoria- Exposure Consulting» = 55290). La vieja (ICLOSED_API_KEY)
+// se sigue leyendo por las llamadas reservadas antes que todavía se reprograman o cancelan. La nueva también tiene
+// los calendarios de la Masterclass del 3/11 (registros a la clase, no llamadas de venta): por eso
+// ICLOSED_EVENT_IDS_2 limita qué calendarios entran.
+const CUENTAS = [
+  { nombre: "principal", key: process.env.ICLOSED_API_KEY, eventos: idsDe(process.env.ICLOSED_EVENT_IDS) },
+  { nombre: "auditoria", key: process.env.ICLOSED_API_KEY_2, eventos: idsDe(process.env.ICLOSED_EVENT_IDS_2 || "55290") },
+].filter((c) => c.key)
 
 export async function POST(request: Request) {
   const auth = authorizePreviewSync(request)
@@ -128,8 +137,7 @@ export async function POST(request: Request) {
     // Ventana para dar de alta reservas que el webhook no trajo: 72 h por defecto; ?horas=336 para
     // rellenar un bache (las repetidas se detectan por teléfono o nombre + mismo día).
     const ventanaHoras = Math.min(24 * 60, Math.max(1, Number(searchParams.get("horas") || "72") || 72))
-    const key = process.env.ICLOSED_API_KEY
-    if (!key) return NextResponse.json({ ok: true, skipped: true, motivo: "Falta ICLOSED_API_KEY: el cron se saltea hasta que se cargue la clave de iClosed" })
+    if (!CUENTAS.length) return NextResponse.json({ ok: true, skipped: true, motivo: "Falta ICLOSED_API_KEY: el cron se saltea hasta que se cargue la clave de iClosed" })
     // iClosed no devuelve un orden estable: el subconjunto cambia según
     // `limit`, por lo que consultar solo limit=100 omite reservas recientes.
     // Cruzar varias ventanas y deduplicar por call ID evita perder agendas.
@@ -140,6 +148,9 @@ export async function POST(request: Request) {
     // Ojo: el corte por "página corta" tiene que ser por tipo. Antes un solo `break` cortaba el
     // recorrido entero: si UPCOMING venía vacío (ninguna llamada futura), PAST no se pedía nunca y el
     // cron terminaba "done" con 0 reservas (pasó del 17/09 al 23/09/2026).
+    for (const cuenta of CUENTAS) {
+    const key = cuenta.key
+    const desde = batches.length
     for (const eventType of ["UPCOMING", "PAST"]) {
       for (let index = 0; index < pageCount; index++) {
         const page = startPage + index
@@ -148,12 +159,14 @@ export async function POST(request: Request) {
           await new Promise((r) => setTimeout(r, 2500))
           response = await fetch(`${API}?eventType=${eventType}&limit=${limit}&page=${page}`, { headers: { Authorization: `Bearer ${key}` }, cache: "no-store" })
         }
-        if (!response.ok) throw new Error(`iClosed HTTP ${response.status}`)
+        if (!response.ok) throw new Error(`iClosed (${cuenta.nombre}) HTTP ${response.status}`)
         const lote = (await response.json())?.data?.eventCalls || []
         batches.push(lote)
         if (lote.length < limit) break  // no hay más páginas de este tipo
         await new Promise((r) => setTimeout(r, 400))
       }
+    }
+    if (cuenta.eventos.length) for (let i = desde; i < batches.length; i++) batches[i] = batches[i].filter((call: any) => cuenta.eventos.includes(Number(call.eventId)))
     }
     const calls: any[] = [...new Map(
       batches.flat().map((call: any) => [String(call.id || call.callId), call]),
@@ -208,7 +221,7 @@ export async function POST(request: Request) {
       // reservas recientes directamente desde iClosed. Se limita a los dos
       // calendarios comerciales y a 72 h desde la reserva para no importar
       // histórico ni tocar otras cuentas.
-      if (!EVENT_IDS.length || EVENT_IDS.includes(Number(call.eventId))) {
+      {  // las llamadas ya vienen filtradas por cuenta y calendario (CUENTAS)
         const bookedAt = new Date(call.createdAt || "")
         const callAt = new Date(call.dateTimeUTC || call.dateTime || "")
         // reservas de las últimas 72 h, o llamadas todavía por venir aunque se hayan reservado antes
