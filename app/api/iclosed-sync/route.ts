@@ -148,9 +148,13 @@ export async function POST(request: Request) {
     // Ojo: el corte por "página corta" tiene que ser por tipo. Antes un solo `break` cortaba el
     // recorrido entero: si UPCOMING venía vacío (ninguna llamada futura), PAST no se pedía nunca y el
     // cron terminaba "done" con 0 reservas (pasó del 17/09 al 23/09/2026).
+    // Si una cuenta falla (p. ej. la vieja se da de baja y su clave deja de andar), se saltea y se sigue con
+    // las demás: antes un error de cualquier cuenta frenaba la sincronización entera. Solo falla si fallan todas.
+    const erroresCuentas: string[] = []
     for (const cuenta of CUENTAS) {
     const key = cuenta.key
     const desde = batches.length
+    try {
     for (const eventType of ["UPCOMING", "PAST"]) {
       for (let index = 0; index < pageCount; index++) {
         const page = startPage + index
@@ -166,8 +170,15 @@ export async function POST(request: Request) {
         await new Promise((r) => setTimeout(r, 400))
       }
     }
+    } catch (e) {
+      batches.length = desde  // descarta lo que haya traído a medias esa cuenta
+      erroresCuentas.push(String((e as any)?.message || e))
+      console.error("[iclosed] cuenta salteada:", cuenta.nombre, String((e as any)?.message || e))
+      continue
+    }
     if (cuenta.eventos.length) for (let i = desde; i < batches.length; i++) batches[i] = batches[i].filter((call: any) => cuenta.eventos.includes(Number(call.eventId)))
     }
+    if (erroresCuentas.length === CUENTAS.length) throw new Error(erroresCuentas.join(" · "))
     const calls: any[] = [...new Map(
       batches.flat().map((call: any) => [String(call.id || call.callId), call]),
     ).values()]
