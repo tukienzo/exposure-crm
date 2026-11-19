@@ -103,6 +103,9 @@ export type MetricasClosing = {
   no_cierres: number
   fees: number
   cash_d1: number
+  // AOV Día 1 (Nahuel, 19/11/2026): lo que paga en promedio cada lead en la llamada = (cash D1 + fees) ÷ (cierres + fees).
+  // Misma regla que Home, Métricas y Embudos. cash_d1 sigue siendo el total cobrado en llamada.
+  aov_dia1?: number
   cash_fees: number
   cash_total?: number // todo lo cobrado en el período (ventas, fees, cuotas, back end) — regla única
   ticket_total: number
@@ -110,6 +113,13 @@ export type MetricasClosing = {
   show_rate_calificados_pct: number
   tc_presentadas_pct: number
   tc_calificadas_pct: number
+}
+
+// AOV Día 1 = (cash D1 + fees) ÷ (cierres + fees). Los reportes viejos guardados no traen aov_dia1: se calcula.
+export function aovDia1(m: { cash_d1?: number; cash_fees?: number; cierres?: number; fees?: number; aov_dia1?: number }): number {
+  if (typeof m.aov_dia1 === "number") return m.aov_dia1
+  const n = (Number(m.cierres) || 0) + (Number(m.fees) || 0)
+  return n > 0 ? Math.round(((Number(m.cash_d1) || 0) + (Number(m.cash_fees) || 0)) / n) : 0
 }
 
 export type ArquetiposMetricas = {
@@ -294,7 +304,7 @@ export function generarTextoWhatsApp(data: ResumenPayload): string {
     lines.push(`• Cierres: ${m.cierres} (Cierres calificados: ${m.cierres_calificados})`)
     lines.push(`• No cierres: ${m.no_cierres} (Calificados no cerrados: ${m.calificados_no_cerrados})`)
     lines.push(`• Fees: ${m.fees}`)
-    lines.push(`• Cash D1: $${m.cash_d1.toLocaleString("es-AR")} USD`)
+    lines.push(`• AOV Día 1: ${aovDia1(m).toLocaleString("es-AR")} USD (promedio pagado en llamada · total cobrado en llamada ${m.cash_d1.toLocaleString("es-AR")})`)
     lines.push(`• Cash Fees: $${m.cash_fees.toLocaleString("es-AR")} USD`)
     lines.push(`• Ticket total contratado: $${m.ticket_total.toLocaleString("es-AR")} USD`)
     lines.push(`• Tasa Cierre s/Presentadas: ${m.tc_presentadas_pct.toFixed(1).replace(".", ",")} %`)
@@ -363,7 +373,7 @@ export function generarTextoWhatsApp(data: ResumenPayload): string {
         }
         lines.push(`Resultado: ${c.resultado}`)
         if (c.resultado === "CIERRE" || c.resultado === "FEE") {
-          lines.push(`Cash D1: $${c.cash_d1.toLocaleString("es-AR")} | Ticket: $${c.ticket_total.toLocaleString("es-AR")}`)
+          lines.push(`Pagó en llamada: ${c.cash_d1.toLocaleString("es-AR")} | Ticket: $${c.ticket_total.toLocaleString("es-AR")}`)
           if (c.motivo_real) {
             lines.push(`Qué lo hizo avanzar: ${c.motivo_real}`)
           }
@@ -444,7 +454,7 @@ export function generarTextoWhatsApp(data: ResumenPayload): string {
     lines.push(`💰 Cierres: ${m.cierres} | Cierres calificados: ${m.cierres_calificados}`)
     lines.push(`🔻 No cierres: ${m.no_cierres} | Calificados no cerrados: ${m.calificados_no_cerrados}`)
     lines.push("")
-    lines.push(`💵 Cash D1: $${m.cash_d1.toLocaleString("es-AR")} USD`)
+    lines.push(`💵 AOV Día 1: ${aovDia1(m).toLocaleString("es-AR")} USD (promedio pagado en llamada · total ${m.cash_d1.toLocaleString("es-AR")})`)
     lines.push(`🎟️ Fees: $${m.cash_fees.toLocaleString("es-AR")} USD`)
     lines.push(`📈 Ticket total contratado: $${m.ticket_total.toLocaleString("es-AR")} USD`)
     lines.push("")
@@ -466,7 +476,7 @@ export function generarTextoWhatsApp(data: ResumenPayload): string {
       lines.push("🌟 CIERRES Y FUPS CALIFICADOS DE LA SEMANA")
       lines.push("━━━━━━━━━━━━━━━━━━━━━━━━━━")
       cierresYFup.forEach((c) => {
-        lines.push(`• ${c.nombre} (${c.resultado}) — ${c.arquetipo_macro} | Cash D1: $${c.cash_d1} | Ticket: $${c.ticket_total}`)
+        lines.push(`• ${c.nombre} (${c.resultado}) — ${c.arquetipo_macro} | Pagó en llamada: ${c.cash_d1} | Ticket: $${c.ticket_total}`)
         if (c.motivo_real) lines.push(`  Clave: ${c.motivo_real}`)
         if (c.siguiente_paso) lines.push(`  Siguiente paso: ${c.siguiente_paso}`)
       })
@@ -494,7 +504,8 @@ export function generarTextoWhatsApp(data: ResumenPayload): string {
     lines.push(`Closer: ${closerStr}`)
     lines.push("")
     lines.push("🎯 Meta del mes: $30.000 USD")
-    lines.push(`💵 Cash D1 Nuevas Ventas: $${m.cash_d1.toLocaleString("es-AR")} USD`)
+    lines.push(`💵 Cash D1 Nuevas Ventas: ${m.cash_d1.toLocaleString("es-AR")} USD`)
+    lines.push(`📊 AOV Día 1: ${aovDia1(m).toLocaleString("es-AR")} USD (promedio pagado en llamada)`)
     lines.push(`🎟️ Fees recaudados: $${m.cash_fees.toLocaleString("es-AR")} USD`)
     lines.push(`💰 Total Recaudado MTD: $${(m.cash_d1 + m.cash_fees).toLocaleString("es-AR")} USD`)
     lines.push(`📈 Contratos firmados: $${m.ticket_total.toLocaleString("es-AR")} USD`)

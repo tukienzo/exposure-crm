@@ -1034,6 +1034,7 @@ export async function GET(request: NextRequest) {
       no_cierres: Math.max(0, u.presentadas - u.cierres),
       fees: u.fees,
       cash_d1: u.cash.ventas_nuevas,
+      aov_dia1: u.cierres + u.fees > 0 ? Math.round((u.cash.ventas_nuevas + u.fees_monto) / (u.cierres + u.fees)) : 0,
       cash_fees: u.fees_monto,
       cash_total: u.cash.total,
       ticket_total: u.cierres * 1500,

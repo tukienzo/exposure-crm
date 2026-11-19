@@ -38,6 +38,7 @@ import { toast } from "sonner"
 import { CLOSERS_ACTIVOS, SETTERS_TODOS } from "@/lib/equipo"
 import type { Agenda } from "@/lib/supabase"
 import type { ResumenPayload, CallDetalle } from "@/lib/closing-whatsapp-formatter"
+import { aovDia1 } from "@/lib/closing-whatsapp-formatter"
 import { cn } from "@/lib/utils"
 import { AuditoriaMensual } from "@/components/ventas/auditoria-mensual"
 import { RevisionCruces } from "@/components/ventas/revision-cruces"
@@ -915,23 +916,23 @@ export default function ResumenVentasPage() {
                   </Button>
                 </Card>
 
-                {/* Cash D1 */}
+                {/* AOV Día 1 (antes «Cash D1», que mostraba el total) */}
                 <Card
                   onClick={() => setMetricaAuditoriaKey("cash_d1")}
                   role="button"
                   tabIndex={0}
                   className="border-emerald-500/30 bg-emerald-500/5 p-4 cursor-pointer transition-all hover:scale-[1.02] hover:border-emerald-400 hover:bg-emerald-500/10 hover:shadow-lg hover:shadow-emerald-500/10 active:scale-[0.99] group flex flex-col justify-between"
-                  title="Pulsá para ver información de Cash Recaudado Día 1"
+                  title="Pulsá para ver información de AOV Día 1"
                 >
                   <div>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-emerald-400 group-hover:text-emerald-300 transition-colors">Cash D1</span>
+                      <span className="text-xs font-semibold text-emerald-400 group-hover:text-emerald-300 transition-colors">AOV Día 1</span>
                       <Info className="h-3.5 w-3.5 text-emerald-500 group-hover:text-emerald-300 transition-colors" />
                     </div>
                     <div className="mt-2 text-2xl font-black text-emerald-400">
-                      ${metricas.cash_d1.toLocaleString("es-AR")}
+                      ${aovDia1(metricas).toLocaleString("es-AR")}
                     </div>
-                    <span className="text-[11px] text-muted-foreground">USD directo</span>
+                    <span className="text-[11px] text-muted-foreground">USD promedio pagado en llamada · total ${((metricas.cash_d1 || 0) + (metricas.cash_fees || 0)).toLocaleString("es-AR")}</span>
                   </div>
                   <Button
                     type="button"
@@ -1760,9 +1761,9 @@ export default function ResumenVentasPage() {
                         <span className="font-bold text-emerald-400">{m.cierres || 0}</span>
                       </div>
                       <div>
-                        <span className="text-muted-foreground block text-[10px]">Cash D1</span>
+                        <span className="text-muted-foreground block text-[10px]">AOV Día 1</span>
                         <span className="font-bold text-emerald-400">
-                          ${(m.cash_d1 || 0).toLocaleString("es-AR")}
+                          ${aovDia1(m).toLocaleString("es-AR")}
                         </span>
                       </div>
                       <div>
@@ -2494,12 +2495,12 @@ export default function ResumenVentasPage() {
                 criterio: (c) => c.resultado === "CIERRE" || c.resultado === "FEE",
               },
               cash_d1: {
-                titulo: "Cash Recaudado Día 1 (Cash D1)",
+                titulo: "AOV Día 1",
                 categoria: "Finanzas",
-                valor: `${metricas.cash_d1.toLocaleString("es-AR")} USD`,
+                valor: `${aovDia1(metricas).toLocaleString("es-AR")} USD`,
                 color: "emerald",
-                definicion: "Dinero cobrado inmediatamente en la primera llamada de cierre o durante el mismo día del evento comercial (Stripe, USDT, transferencias).",
-                formula: "Suma de pagos confirmados vinculados a la llamada / persona en el período",
+                definicion: "Lo que paga en promedio cada lead en la llamada de cierre (ventas nuevas y fees). No es el total recaudado: es el promedio por compromiso. Misma regla que Home, Métricas y Embudos.",
+                formula: "(Cash cobrado en llamada + Fees) ÷ (Cierres + Fees)",
                 fuente: "CRM Pagos (operaciones aprobadas y libres de duplicados).",
                 criterio: (c) => c.cash_d1 > 0,
               },
