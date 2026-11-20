@@ -37,6 +37,9 @@ export const CORTES = { S: 66, A: 54, B: 42, C: 30 } as const
 const norm = (value: unknown) => String(value ?? "").trim().toLowerCase()
   .normalize("NFD").replace(/[̀-ͯ]/g, "")
   .replace(/[’‘]/g, "'").replace(/\s+/g, " ")
+  // El formulario de la cuenta nueva de iClosed (16/11/2026) escribe "- $500 USD" y "+ $500 USD" con espacio:
+  // sin esto "- $500" no coincidía con "-$500" y el monto 500 se tomaba como "500 o más" (30 puntos).
+  .replace(/([+-]) (?=\$|\d)/g, "$1")
 const has = (v: string, terms: string[]) => terms.some((t) => v.includes(norm(t)))
 // primer monto en USD que aparece en el texto ("$3.000", "3k", "10.000 USD") → número
 function monto(v: string): number | null {

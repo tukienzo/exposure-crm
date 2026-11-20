@@ -77,6 +77,9 @@ function answerFields(call: any) {
       out.ingresos = String(value)
     }
     else if (question.includes("ingres")) out.ingresos = String(value)
+    // Formulario de la cuenta nueva de iClosed (16/11/2026): "¿Cuánto generás por mes HOY?" y "A qué te dedicás actualmente?"
+    else if (question.includes("generás por mes") || question.includes("generas por mes")) out.ingresos = String(value)
+    else if (question.includes("dedicás") || question.includes("dedicas")) out.ocupacion = String(value)
     else if (question.includes("capital") || question.includes("invertir")) out.inversion = String(value)
   }
   return out
