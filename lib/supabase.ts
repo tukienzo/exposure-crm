@@ -69,7 +69,7 @@ export type Agenda = {
 // Un FUP: hecho=true es un contacto que ya se hizo (la fecha puede ser anterior a hoy, para dejar registro);
 // hecho=false es un seguimiento preparado para esa fecha (mensaje, link o capturas listos para usar).
 export type FupAdjunto = { url: string; nombre: string; tipo: string }
-export type FupHecho = { hecho: boolean; fecha: string; por?: string; nota?: string; mensaje?: string; link?: string; adjuntos?: FupAdjunto[] }
+export type FupHecho = { hecho: boolean; fecha: string; por?: string; nota?: string; mensaje?: string; link?: string; adjuntos?: FupAdjunto[]; tipo?: string; respondio?: boolean }
 export type Seguimiento = {
   id: string
   agenda_id: string | null

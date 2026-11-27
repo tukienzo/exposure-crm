@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CrmEmpty, CrmPageIntro, CrmStat } from "@/components/crm-ui"
 import { cn } from "@/lib/utils"
 import type { FupAdjunto, FupHecho, Seguimiento } from "@/lib/supabase"
+import { SeguimientosFichas } from "@/components/ventas/seguimientos-fichas"
 
 // Pantalla de seguimientos: la pestaña 🔂 SEGUIMIENTOS del sheet, pero por closer. Una fila por lead con
 // los 10 FUP como casilleros. Cada casillero abre un editor: fecha (pasada, hoy o futura), hecho o preparado,
@@ -22,7 +23,7 @@ const fetcher = (url: string) => fetch(url, { cache: "no-store" }).then(async r 
 const SITUACIONES = ["Lo tenía que pensar", "No tenia dinero para fee", "No llegaba a la Cuota 1", "No llegaba al PIF", "Le parecía caro", "Desconfianza", "Miedo", "Metodo de pago", "No tenia urgencia", "Los padres no lo dejaron", "Consultar con pareja/socio", "No respondió", "Reagendó", "Pagó fee", "Problemas de Luz"]
 const TIPOS = ["LEAD S", "LEAD A", "LEAD B", "LEAD C", "LEAD D"]
 const ESTADOS = ["Activo", "Reagendó", "Cerrado", "Descartado"] as const
-const FUPS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+const FUPS = Array.from({ length: 15 }, (_, i) => i + 1)   // orden de FUP: día 1 al 15 (Nahuel, 26/11/2026)
 const NADA = "-"
 
 type Respuesta = { yo: { nombre: string; rol: string; primerNombre: string; manager: boolean; soloPropios: boolean }; closers: string[]; hoy: string; filas: Seguimiento[] }
@@ -42,6 +43,8 @@ const nombreMes = (ym: string) => new Date(`${ym}-15T12:00:00`).toLocaleDateStri
 const estadoFup = (h: FupHecho | undefined, hoy: string) => !h ? "vacio" : h.hecho ? "hecho" : h.fecha < hoy ? "vencido" : "preparado"
 
 export default function SeguimientosPage() {
+  // Vista Fichas (lista + ficha, 26/11/2026) por defecto; la tabla original sigue igual en «Tabla».
+  const [vista, setVista] = useState<"fichas" | "tabla">("fichas")
   const [closer, setCloser] = useState("todos")
   const [estado, setEstado] = useState("activos")
   const [mes, setMes] = useState("")
@@ -85,10 +88,12 @@ export default function SeguimientosPage() {
     <CrmPageIntro eyebrow="Ventas · Seguimientos" title={yo?.soloPropios ? `Mis seguimientos` : "Seguimientos"} tone="blue" icon={<BellRing className="h-5 w-5" />}
       description={yo?.soloPropios ? "Tus leads después de la call: tocá cada FUP para registrarlo (con fecha, mensaje y captura) o dejarlo preparado para más adelante. Todo se guarda solo." : "Los leads en seguimiento de cada closer, con sus FUP, situación y próximo contacto. Filtrá por closer para ver la cartera de cada uno."}
       actions={<>
+        <div className="flex rounded-md border p-0.5">{([["fichas", "Fichas"], ["tabla", "Tabla"]] as const).map(([v, t]) => <Button key={v} size="sm" variant={vista === v ? "default" : "ghost"} className="h-7" onClick={() => setVista(v)}>{t}</Button>)}</div>
         <Button variant="outline" size="sm" onClick={() => mutate()}><RefreshCw className={cn("mr-1 h-4 w-4", isLoading && "animate-spin")} />Actualizar</Button>
         <Button size="sm" onClick={() => setAbrirAlta(true)}><Plus className="mr-1 h-4 w-4" />Agregar lead</Button>
       </>} />
 
+    {vista === "fichas" ? <SeguimientosFichas /> : <>
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <CrmStat label="En seguimiento" value={activos.length} detail={`${sinFup.length} todavía sin ningún FUP · ${preparados} FUP preparados a futuro`} icon={<ListChecks className="h-5 w-5" />} tone="blue" />
       <CrmStat label="Para hoy" value={paraHoy.length} detail="con próximo contacto hoy" icon={<CalendarClock className="h-5 w-5" />} tone="amber" />
@@ -125,7 +130,7 @@ export default function SeguimientosPage() {
             <th className="px-2 py-2 text-center">Audio</th>
             <th className="px-2 py-2 text-left">Tipo</th>
             <th className="px-2 py-2 text-left">Problema / dolor</th>
-            <th className="min-w-[420px] px-2 py-2 text-left">FUP 1 → 10 (tocá uno: fecha, mensaje, captura · amarillo = preparado)</th>
+            <th className="min-w-[620px] px-2 py-2 text-left">FUP 1 → 15 (tocá uno: fecha, mensaje, captura · amarillo = preparado)</th>
             <th className="px-2 py-2 text-left">Próximo</th>
             <th className="px-2 py-2 text-left">Razón para la call</th>
             <th className="px-2 py-2 text-left">Fathom</th>
@@ -139,6 +144,7 @@ export default function SeguimientosPage() {
         </tbody>
       </table>
     </div>}
+    </>}
 
     <Alta abierto={abrirAlta} onCerrar={() => setAbrirAlta(false)} closer={closer} yo={yo} closers={data?.closers || []} onCreado={() => { setAbrirAlta(false); mutate() }} />
   </div>
@@ -183,7 +189,7 @@ function Fila({ f, hoy, manager, closers, guardando, onGuardar, onBorrar }: { f:
       </Select>
     </td>
     <td className="px-2 py-2"><Texto valor={f.problema_dolor} ancho="w-52" alto onGuardar={v => onGuardar({ problema_dolor: v })} placeholder="Qué le duele / qué quiere" /></td>
-    <td className="min-w-[420px] px-2 py-2">
+    <td className="min-w-[620px] px-2 py-2">
       <div className="flex flex-nowrap gap-1">
         {FUPS.map(n => {
           const h = f.fups?.[String(n)]

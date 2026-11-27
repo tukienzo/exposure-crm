@@ -136,6 +136,11 @@ export async function POST(request: Request) {
 // fecha (texto, link y capturas listos para usar). Los campos que no vienen se conservan. { id, fup: 3, borrar: true } lo quita.
 // Si queda un FUP preparado a futuro, el próximo contacto se corre a esa fecha cuando estaba vacío o era posterior.
 const FECHA = /^\d{4}-\d{2}-\d{2}$/
+// Fichas (26/11/2026): cada FUP suma tipo (Texto · Audio · Foto 1 VW · Video 1 VW · Llamada) y si respondió.
+// El diagnóstico de la ficha (arquetipo comercial, temperatura, objeción, próximo movimiento) va en fups._ficha:
+// no tiene "hecho" ni "fecha", así que la etapa, el próximo contacto y la Ciudad lo ignoran.
+const TIPOS_FUP = ["Texto", "Audio", "Foto 1 VW", "Video 1 VW", "Llamada"]
+const CAMPOS_FICHA = ["arquetipo_comercial", "temperatura", "objecion_principal", "objecion_secundaria", "proximo_movimiento", "proxima_accion", "compromiso", "capacidad_inversion", "decide"]
 const limpiarLink = (v: unknown) => { const t = texto(v, 500); return t && /^https?:\/\//i.test(t) ? t : null }
 const limpiarAdjuntos = (v: unknown) => Array.isArray(v)
   ? v.slice(0, 10).map(a => ({ url: String(a?.url || ""), nombre: texto(a?.nombre, 120) || "adjunto", tipo: texto(a?.tipo, 60) || "" }))
@@ -145,7 +150,7 @@ export async function PATCH(request: Request) {
   try {
     const ctx = await contexto()
     if (!ctx) return NextResponse.json({ error: "No autenticado" }, { status: 401 })
-    const { id, fup, hecho, nota, mensaje, link, adjuntos, fecha, borrar, ...resto } = await request.json()
+    const { id, fup, hecho, nota, mensaje, link, adjuntos, fecha, borrar, tipo, respondio, ficha, ...resto } = await request.json()
     if (!id) return NextResponse.json({ error: "ID requerido" }, { status: 400 })
     const { data: fila, error: e0 } = await db().from("seguimientos").select("id,closer,fups,proximo_fup").eq("id", id).maybeSingle()
     if (e0) return NextResponse.json({ error: e0.message }, { status: 500 })
@@ -165,8 +170,8 @@ export async function PATCH(request: Request) {
     }
     if (fup !== undefined) {
       const n = Number(fup)
-      if (!Number.isInteger(n) || n < 1 || n > 10) return NextResponse.json({ error: "FUP inválido (1 a 10)" }, { status: 400 })
-      type Entrada = { hecho: boolean; fecha: string; por?: string; nota?: string; mensaje?: string; link?: string; adjuntos?: { url: string; nombre: string; tipo: string }[] }
+      if (!Number.isInteger(n) || n < 1 || n > 15) return NextResponse.json({ error: "FUP inválido (1 a 15)" }, { status: 400 })
+      type Entrada = { hecho: boolean; fecha: string; por?: string; nota?: string; mensaje?: string; link?: string; adjuntos?: { url: string; nombre: string; tipo: string }[]; tipo?: string; respondio?: boolean | null }
       const fups = { ...((fila.fups as Record<string, Entrada>) || {}) }
       const k = String(n)
       const previo = fups[k] || null
@@ -182,17 +187,29 @@ export async function PATCH(request: Request) {
           mensaje: mensaje !== undefined ? (texto(mensaje, 4000) || undefined) : previo?.mensaje,
           link: link !== undefined ? (limpiarLink(link) || undefined) : previo?.link,
           adjuntos: adjuntos !== undefined ? limpiarAdjuntos(adjuntos) : previo?.adjuntos,
+          tipo: tipo !== undefined ? (TIPOS_FUP.includes(String(tipo)) ? String(tipo) : undefined) : previo?.tipo,
+          respondio: respondio !== undefined ? (respondio === null || respondio === "" ? null : Boolean(respondio)) : previo?.respondio,
         }
+        if (!entrada.tipo) delete entrada.tipo
+        if (entrada.respondio === undefined || entrada.respondio === null) delete entrada.respondio
         if (estaHecho && !previo?.hecho) entrada.por = ctx.primerNombre || ctx.email   // quien lo dio por hecho
         if (!entrada.adjuntos?.length) delete entrada.adjuntos
         for (const c of ["nota", "mensaje", "link"] as const) if (!entrada[c]) delete entrada[c]
         fups[k] = entrada
       }
       updates.fups = fups
-      updates.etapa = Math.max(0, ...Object.entries(fups).filter(([, e]) => e?.hecho).map(([kk]) => Number(kk)))
+      updates.etapa = Math.max(0, ...Object.entries(fups).filter(([kk, e]) => /^d+$/.test(kk) && e?.hecho).map(([kk]) => Number(kk)))
       const hoy = hoyAR()
       const programado = Object.values(fups).filter(e => e && !e.hecho && e.fecha >= hoy).map(e => e.fecha).sort()[0]
       if (programado && (!fila.proximo_fup || String(fila.proximo_fup) > programado) && updates.proximo_fup === undefined) updates.proximo_fup = programado
+    }
+    if (ficha && typeof ficha === "object") {
+      const base = (updates.fups as Record<string, unknown>) || { ...((fila.fups as Record<string, unknown>) || {}) }
+      const previa = (base._ficha as Record<string, unknown>) || {}
+      const nueva: Record<string, unknown> = { ...previa }
+      for (const c of CAMPOS_FICHA) if (c in ficha) { const t = texto((ficha as Record<string, unknown>)[c], 1000); if (t) nueva[c] = t; else delete nueva[c] }
+      nueva.actualizado = new Date().toISOString(); nueva.por = ctx.primerNombre || ctx.email
+      updates.fups = { ...base, _ficha: nueva }
     }
     if (Object.keys(updates).length === 1) return NextResponse.json({ error: "Nada para actualizar" }, { status: 400 })
     const { data, error } = await db().from("seguimientos").update(updates).eq("id", id).select("*").maybeSingle()
