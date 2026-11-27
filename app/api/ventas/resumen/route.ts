@@ -18,6 +18,7 @@ import { extractBookingContentOrigin } from "@/lib/chat-summary-attribution"
 import { armarEnlazador, cargarAgendasEnlace, tel9 } from "@/lib/embudo-atribucion"
 import { etiquetaReprogramada } from "@/lib/reprogramaciones"
 import { metricasVentas } from "@/lib/metricas-ventas"
+import { bloqueSeguimientos } from "@/lib/resumen-seguimientos"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -1091,7 +1092,7 @@ export async function GET(request: NextRequest) {
       },
     }
 
-    const textoWhatsApp = generarTextoWhatsApp(payload)
+    const textoWhatsApp = generarTextoWhatsApp(payload) + (searchParams.get("ligero") === "1" ? "" : await bloqueSeguimientos(sb, fechaDesde, fechaHasta, closer, pagos))
 
     // ligero=1: la auditoría mensual no necesita transcripciones ni resúmenes largos.
     if (searchParams.get("ligero") === "1") {
