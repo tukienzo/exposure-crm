@@ -15,6 +15,9 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { ResumenSeguimientos } from "@/components/ventas/seguimientos-resumen"
+export type { Lead as LeadSeguimiento }
 
 const fetcher = (url: string) => fetch(url, { cache: "no-store" }).then(async r => { const b = await r.json(); if (!r.ok) throw new Error(b.error || "Error"); return b })
 const NADA = "-"
@@ -133,8 +136,8 @@ export function SeguimientosFichas() {
     {error && <p className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-2 text-sm text-red-500">{error.message}</p>}
     {isLoading && !data && <p className="py-16 text-center text-muted-foreground"><Loader2 className="mx-auto mb-2 h-6 w-6 animate-spin" />Cargando leads…</p>}
 
-    {data && <div className="grid gap-3 lg:grid-cols-[380px_1fr]">
-      <div className="max-h-[75vh] overflow-y-auto rounded-2xl border bg-card">
+    {data && <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+      <div className="max-h-[80vh] overflow-y-auto rounded-2xl border bg-card lg:col-span-7">
         {!lista.length && <p className="p-8 text-center text-sm text-muted-foreground">No hay leads con estos filtros.</p>}
         {lista.map(l => {
           const prox = l.seguimiento?.proximo_fup
@@ -154,10 +157,14 @@ export function SeguimientosFichas() {
           </button>
         })}
       </div>
-      <div className="rounded-2xl border bg-card p-4">
-        {actual ? <Ficha key={actual.key} l={actual} hoy={hoy} onCambio={() => mutate()} onAlta={k => setSel(k)} /> : <p className="py-20 text-center text-sm text-muted-foreground">Elegí un lead de la lista para abrir su ficha.</p>}
-      </div>
+      <div className="lg:col-span-5"><ResumenSeguimientos leads={data.leads}hoy={hoy} closer={closer} /></div>
     </div>}
+    <Dialog open={!!actual} onOpenChange={o => { if (!o) setSel(null) }}>
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+        <DialogTitle className="sr-only">Ficha del lead</DialogTitle>
+        {actual && <Ficha key={actual.key} l={actual} hoy={hoy} onCambio={() => mutate()} onAlta={k => setSel(k)} />}
+      </DialogContent>
+    </Dialog>
   </div>
 }
 
